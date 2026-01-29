@@ -1,0 +1,44 @@
+targetUrl: https://github.com/leraptor65/centralizedtransmissionandremoteloading
+scaleFactor: 1
+autoScroll: false
+scrollSpeed: 50
+scrollSequence: ""
+history:
+    - url: https://github.com/leraptor65/centralizedtransmissionandremoteloading
+      timestamp: 1769717854372
+    - url: https://google.com
+      timestamp: 1769717225237
+    - url: https://www.wikipedia.org
+      timestamp: 1769717026331
+    - url: https://news.ycombinator.com
+      timestamp: 1769716909081
+lastModified: 1769717854372
+cookieJar:
+    - name: __Secure-STRP
+      value: ""
+      domain: www.google.com
+      path: /
+    - name: AEC
+      value: AaJma5uBaNf8WTU5Nd6Qtyt4KS-fbLHRtSR3LvAtOArVUYGpyCGk-xpR2A
+      domain: .google.com
+      path: /
+    - name: NID
+      value: 528=BA14rEoK4S8qbMq5LIIQq5dUFaS5tH-T3UPDRFHCT6BiIapOw4BHZMCvEhKiiXXJAqBq2RCcWlEkzp26HGkpB4h0qO-1nh2Z2VWcKrfwzj_Lg_dxQJWm8ILkL1Fp-j87pKrMq3aso6EHIrQBFwarDCSeUS1bNSil18nR-QSRGb9mXgtuHBVJasHY5zIDRUF5kMrjcCfELH_aHZAI5sd2YGkznzN1dKF5Q6fPkk74Hw
+      domain: .google.com
+      path: /
+    - name: __Secure-BUCKET
+      value: CIkH
+      domain: .google.com
+      path: /
+    - name: _octo
+      value: GH1.1.1943292101.1769717862
+      domain: github.com
+      path: /
+    - name: _gh_sess
+      value: WLGXWFOJViCrQHNiXtRY%2FdyJ%2FXixysjn9MhRUjtmUdbAfmevKH7%2Fz1ElgnJy1fxYUAZ5ZaoYKyEUbIgVum%2Bco1O1AHymW4TaUQsm2qzF%2BTd6%2FSg7Sr2%2BtcnUtBNY3WKD4pjPzbOcPfGbOYDhPZ68cWkKFEDcF%2BM2DLrfBM%2BIVTTHqW0s7VzBTn3XTTm6%2BKaCjloi7YjgsMyCbVrJjveAIHBr95Ft%2B6kcLjpMQJEAh%2FXAF%2FBH4pYGR55FaYmB8HJVCp77nv0a9raivybwJZuZMjMwZ4LJI0RZYBnWbTJ%2FO4mZ%2Frcc--V%2FTHN%2Fpdsx1qlvQe--zmLnJEGLhTvdLAsYee5Msg%3D%3D
+      domain: ""
+      path: /
+    - name: logged_in
+      value: ""
+      domain: www.google.com
+      path: /

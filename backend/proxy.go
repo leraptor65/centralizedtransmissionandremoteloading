@@ -29,6 +29,9 @@ var (
 	// Absolute URLs: "//domain.com" or "https://domain.com" inside quotes
 	absoluteUrlRe = regexp.MustCompile(`('|")(https?:)?//([^/'"]+)`)
 
+	// @import "..." or @import url(...)
+	importRe = regexp.MustCompile(`(?i)@import\s+(?:url\()?["']?([^"'\)]+)["']?\)?[^;]*;`)
+
 	integrityRe   = regexp.MustCompile(`(?i)\s*integrity="[^"]*"`)
 	crossoriginRe = regexp.MustCompile(`(?i)\s*crossorigin(="[^"]*")?`)
 )
@@ -72,6 +75,24 @@ func newProxyHandler() http.HandlerFunc {
 			}
 		} else if reqPath == "/" {
 			// Root request
+			// If the targetURL has a specific path (e.g. /leraptor65/...), and we are at root,
+			// we should use that path, unless the user manually navigated to /
+			// But for a mirror/proxy, accessing root usually implies accessing the target Root.
+			// However, if TargetURL is `https://github.com/foo/bar`, accessing `localhost:1337/` should proxy `https://github.com/foo/bar`.
+			// The current logic in `httputil.NewSingleHostReverseProxy` uses `target.Path` as a base, but we need to ensure we don't double up or lose it.
+			// Actually, standard RecverseProxy behavior:
+			// "If the target is https://example.com/base and the request is /dir, the request URL to the target will be https://example.com/base/dir."
+			// So if we just set target to targetURL, it should work?
+			// But we are manually setting `req.URL.Path = reqPath` in Director.
+			// `reqPath` is `/`.
+			// If we overwrite `req.URL.Path = reqPath`, we lose `targetURL.Path`.
+
+			// Fix: If request is root, and target has path, let's allow the ReverseProxy's default behavior OR map explicitly.
+			// If we want `localhost:1337/` -> `github.com/foo/bar`, we should set req.URL.Path to `/foo/bar`.
+			if targetURL.Path != "" && targetURL.Path != "/" {
+				reqPath = targetURL.Path
+			}
+
 			// Disable caching for root
 			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 			w.Header().Set("Pragma", "no-cache")
@@ -104,13 +125,33 @@ func newProxyHandler() http.HandlerFunc {
 			req.URL.Host = target.Host
 			req.URL.Scheme = target.Scheme
 
-			// User Agent
+			// Spoof Headers for compatibility
 			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
+			req.Header.Set("Referer", fmt.Sprintf("%s://%s/", target.Scheme, target.Host))
+			req.Header.Set("Origin", fmt.Sprintf("%s://%s", target.Scheme, target.Host))
+
+			// Inject Shared Cookies
+			// We iterate over our jar and add them
+			currentConfig := GetConfig()
+			for _, c := range currentConfig.CookieJar {
+				// We add to the request
+				req.AddCookie(&http.Cookie{
+					Name:  c.Name,
+					Value: c.Value,
+				})
+			}
+
 			req.Header.Del("Accept-Encoding") // Let's request Identity to avoid manual decompression mess if possible
 			// Actually, requesting compressed is fine if we handle it in ModifyResponse
 		}
 
 		proxy.ModifyResponse = func(resp *http.Response) error {
+			// Capture Cookies
+			cookies := resp.Cookies()
+			if len(cookies) > 0 {
+				go UpdateCookies(cookies) // Async update to not block
+			}
+
 			// Handle Redirects
 			if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 				loc := resp.Header.Get("Location")
@@ -128,6 +169,11 @@ func newProxyHandler() http.HandlerFunc {
 					}
 				}
 			}
+
+			// Strip Security Headers to allow framing and proxying
+			resp.Header.Del("Content-Security-Policy")
+			resp.Header.Del("Content-Security-Policy-Report-Only")
+			resp.Header.Del("X-Frame-Options")
 
 			// Rewriting Logic
 			contentType := resp.Header.Get("Content-Type")
@@ -188,11 +234,9 @@ func newProxyHandler() http.HandlerFunc {
 					}()
 				}
 
-				// 1. CSS URL
+				// 1. CSS URL & Import
 				bodyStr = cssUrlRe.ReplaceAllStringFunc(bodyStr, func(match string) string {
 					submatch := cssUrlRe.FindStringSubmatch(match)
-					// Go regexp: submatch[0] is match, [1] is first group etc.
-					// url('1') or url("2") or url(3)
 					urlVal := submatch[1]
 					if urlVal == "" {
 						urlVal = submatch[2]
@@ -200,14 +244,19 @@ func newProxyHandler() http.HandlerFunc {
 					if urlVal == "" {
 						urlVal = submatch[3]
 					}
-
 					if urlVal == "" {
 						return match
 					}
+					return fmt.Sprintf("url('%s')", rewrite(urlVal))
+				})
 
-					rewritten := rewrite(urlVal)
-					// naive quote handling
-					return fmt.Sprintf("url('%s')", rewritten)
+				bodyStr = importRe.ReplaceAllStringFunc(bodyStr, func(match string) string {
+					sub := importRe.FindStringSubmatch(match)
+					if len(sub) < 2 {
+						return match
+					}
+					val := sub[1]
+					return strings.Replace(match, val, rewrite(val), 1)
 				})
 
 				// 2. HTML Attributes
@@ -282,7 +331,7 @@ func newProxyHandler() http.HandlerFunc {
 					}
 					confBytes, _ := json.Marshal(clientConf)
 
-					scripts := fmt.Sprintf(injectionsTemplate, string(confBytes), config.ScaleFactor, 100/config.ScaleFactor)
+					scripts := fmt.Sprintf(injectionsTemplate, string(confBytes), config.LastModified, config.ScaleFactor, 100/config.ScaleFactor)
 					bodyStr = strings.Replace(bodyStr, "</head>", scripts+"</head>", 1)
 				}
 
@@ -290,6 +339,7 @@ func newProxyHandler() http.HandlerFunc {
 				buf := bytes.NewBufferString(bodyStr)
 				resp.Body = io.NopCloser(buf)
 				resp.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+				resp.Header.Del("Transfer-Encoding")
 			}
 			return nil
 		}
@@ -305,6 +355,7 @@ func isBlocked(host string) bool {
 		"google-analytics.com",
 		"googletagmanager.com",
 		"doubleclick.net",
+		"intercom.io",
 	}
 	for _, b := range blocked {
 		if strings.Contains(host, b) {
@@ -317,6 +368,21 @@ func isBlocked(host string) bool {
 const injectionsTemplate = `
 <script>
     const config = %s;
+    const initialVersion = %d;
+    
+    // Auto-Reload Logic
+    setInterval(() => {
+        fetch('/api/version')
+            .then(res => res.json())
+            .then(data => {
+                if (data.lastModified > initialVersion) {
+                    console.log("Config changed, reloading...");
+                    window.location.reload();
+                }
+            })
+            .catch(err => console.error("Version check failed", err));
+    }, 2000);
+
     if (config.autoScroll) {
         document.addEventListener('DOMContentLoaded', () => {
             let lastTime = 0, currentSequenceIndex = 0, sequences = [], pauseUntil = 0;

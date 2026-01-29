@@ -1,9 +1,17 @@
-targetUrl: https://google.com
+targetUrl: https://en.wikipedia.org
 scaleFactor: 1
 autoScroll: false
 scrollSpeed: 50
 scrollSequence: ""
 history:
+    - url: https://en.wikipedia.org
+      timestamp: 1769715345484
+    - url: https://www.wikipedia.org
+      timestamp: 1769714989765
+    - url: https://news.ycombinator.com
+      timestamp: 1769714943037
+    - url: https://google.comhttps://news.ycombinator.com
+      timestamp: 1769714915517
     - url: https://google.com
       timestamp: 1769712623413
     - url: https://yahoo.com

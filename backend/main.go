@@ -24,6 +24,7 @@ func main() {
 	// API Routes
 	mux.HandleFunc("/api/config", apiConfigHandler)
 	mux.HandleFunc("/api/report-height", apiReportHeightHandler)
+	mux.HandleFunc("/api/version", apiVersionHandler)
 
 	// Proxy Handler (The "Catch All" for unhandled routes, unless we match specific prefixes)
 	// We want to serve frontend for /config and /assets, and proxy logic for everything else

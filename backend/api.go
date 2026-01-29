@@ -20,9 +20,25 @@ func apiConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		oldConfig := GetConfig()
 		if err := UpdateConfig(newConfig); err != nil {
 			http.Error(w, "Failed to save config", http.StatusInternalServerError)
 			return
+		}
+
+		// Clear cookies if TargetURL changed
+		if oldConfig.TargetURL != newConfig.TargetURL {
+			for _, cookie := range r.Cookies() {
+				// Expire cookie
+				c := &http.Cookie{
+					Name:     cookie.Name,
+					Value:    "",
+					Path:     "/",
+					MaxAge:   -1,
+					HttpOnly: false, // Try to clear both if possible, but we can't influence client-side only ones easily without name
+				}
+				http.SetCookie(w, c)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -44,4 +60,10 @@ func apiReportHeightHandler(w http.ResponseWriter, r *http.Request) {
 	// For now just acknowledge
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"received"}`))
+}
+
+func apiVersionHandler(w http.ResponseWriter, r *http.Request) {
+	config := GetConfig()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int64{"lastModified": config.LastModified})
 }

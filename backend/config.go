@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -15,6 +16,14 @@ type HistoryItem struct {
 	Timestamp int64  `yaml:"timestamp" json:"timestamp"`
 }
 
+// Basic struct for JSON serialization of cookies
+type Cookie struct {
+	Name   string `json:"name" yaml:"name"`
+	Value  string `json:"value" yaml:"value"`
+	Domain string `json:"domain" yaml:"domain"`
+	Path   string `json:"path" yaml:"path"`
+}
+
 type Config struct {
 	TargetURL      string        `yaml:"targetUrl" json:"targetUrl"`
 	ScaleFactor    float64       `yaml:"scaleFactor" json:"scaleFactor"`
@@ -22,6 +31,8 @@ type Config struct {
 	ScrollSpeed    int           `yaml:"scrollSpeed" json:"scrollSpeed"`
 	ScrollSequence string        `yaml:"scrollSequence" json:"scrollSequence"`
 	History        []HistoryItem `yaml:"history" json:"history"`
+	LastModified   int64         `yaml:"lastModified" json:"lastModified"`
+	CookieJar      []Cookie      `yaml:"cookieJar" json:"cookieJar"`
 }
 
 var (
@@ -57,11 +68,13 @@ func initConfig() error {
 
 	// Default Config
 	config = Config{
-		TargetURL:   "https://github.com/leraptor65/centralizedtransmissionandremoteloading",
-		ScaleFactor: 1.0,
-		AutoScroll:  false,
-		ScrollSpeed: 50,
-		History:     []HistoryItem{},
+		TargetURL:    "https://github.com/leraptor65/centralizedtransmissionandremoteloading",
+		ScaleFactor:  1.0,
+		AutoScroll:   false,
+		ScrollSpeed:  50,
+		History:      []HistoryItem{},
+		LastModified: time.Now().UnixMilli(),
+		CookieJar:    []Cookie{},
 	}
 
 	return loadConfig()
@@ -85,6 +98,11 @@ func loadConfig() error {
 		return fmt.Errorf("failed to parse settings.yml: %w", err)
 	}
 
+	// Ensure LastModified is set if loading legacy config
+	if config.LastModified == 0 {
+		config.LastModified = time.Now().UnixMilli()
+	}
+
 	return nil
 }
 
@@ -92,6 +110,46 @@ func GetConfig() Config {
 	configMutex.RLock()
 	defer configMutex.RUnlock()
 	return config
+}
+
+func UpdateCookies(cookies []*http.Cookie) {
+	configMutex.Lock()
+	defer configMutex.Unlock()
+
+	updated := false
+	existingMap := make(map[string]int)
+	for i, c := range config.CookieJar {
+		existingMap[c.Name] = i
+	}
+
+	for _, c := range cookies {
+		// Simple logic: overwrite if name matches
+		// Real logic should consider Domain/Path but for proxy usage usually strict.
+		nc := Cookie{
+			Name:   c.Name,
+			Value:  c.Value,
+			Domain: c.Domain,
+			Path:   c.Path,
+		}
+
+		if idx, ok := existingMap[c.Name]; ok {
+			if config.CookieJar[idx].Value != c.Value {
+				config.CookieJar[idx] = nc
+				updated = true
+			}
+		} else {
+			config.CookieJar = append(config.CookieJar, nc)
+			existingMap[c.Name] = len(config.CookieJar) - 1
+			updated = true
+		}
+	}
+
+	if updated {
+		// We don't necessarily bump lastModified for cookies as it triggers reload loop
+		// Only bump if we want to sync other settings.
+		// For shared session, strictly backend sync is enough for next request.
+		saveConfigInternal()
+	}
 }
 
 func UpdateConfig(newConfig Config) error {
@@ -120,10 +178,17 @@ func UpdateConfig(newConfig Config) error {
 		}
 		newConfig.History = newHistory
 	} else {
-		// Preserve history if not changing URL (e.g. just changing scale)
-		// Unless the newConfig HAS history (e.g. restore/clear)
-		// We trust the client sent the correct history history (including empty to clear)
+		// Preserve history if not changing URL
+		if len(newConfig.History) == 0 && len(config.History) > 0 {
+			// Keep old history if new one is empty (unless intent was to clear, but we assume safety here)
+			// Actually, typically the frontend sends the whole object.
+			// Let's trust the frontend, but if it's missing, maybe copy?
+			// But for safety, let's just stick to what was sent.
+		}
 	}
+
+	// Always update LastModified
+	newConfig.LastModified = time.Now().UnixMilli()
 
 	config = newConfig
 	return saveConfigInternal()

@@ -7,7 +7,7 @@ import { StatusBanner } from './components/StatusBanner';
 import type { Config } from './types';
 
 const defaultConfig: Config = {
-  targetUrl: '',
+  targetUrl: 'https://github.com/leraptor65/centralizedtransmissionandremoteloading',
   scaleFactor: 1,
   autoScroll: false,
   scrollSpeed: 50,
@@ -88,9 +88,23 @@ function App() {
           <button
             type="button"
             className="btn btn-danger"
-            onClick={() => {
-              const newConfig = { ...defaultConfig, history: config.history };
-              setConfig(newConfig);
+            onClick={async () => {
+              if (confirm('Are you sure you want to reset all settings to default?')) {
+                setSaving(true);
+                try {
+                  const newConfig = { ...defaultConfig, history: config.history };
+                  // Ensure targetUrl is exactly as requested
+                  newConfig.targetUrl = 'https://github.com/leraptor65/centralizedtransmissionandremoteloading';
+                  await saveConfig(newConfig);
+                  setMessage("Settings reset to default!");
+                  await loadConfig();
+                } catch (error) {
+                  console.error(error);
+                  setMessage("Error resetting settings");
+                } finally {
+                  setSaving(false);
+                }
+              }
             }}
             disabled={saving}
           >
