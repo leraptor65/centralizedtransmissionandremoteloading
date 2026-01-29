@@ -3,10 +3,9 @@ services:
     image: leraptor65/centralizedtransmissionandremoteloading:latest
     container_name: centralizedtransmissionandremoteloading
     ports:
-      - "${PORT:-1337}:1337"
+      - "1337:1337" # Host:Container
     volumes:
-      - ./data:/usr/src/app/data
-    environment:
-      - PORT=1337
-      - TARGET_URL=${TARGET_URL:-https://www.google.com/}
+      - .:/usr/src/app/config_mount
+      # environment:
+      # - PORT=1337 # Internal app port (defaults to 1337)
     restart: always

@@ -15,7 +15,8 @@ You can easily deploy this using Docker Compose.
 
 2.  **Run it:**
     ```bash
-    mkdir data # Create data directory for persistence
+    # The configuration files (target_url.txt, etc.) will be created in the current directory
+    # Ensure the container (UID 1000) can write to the current directory if permission issues arise.
     docker compose up -d
     ```
 
@@ -24,8 +25,7 @@ You can easily deploy this using Docker Compose.
     You can configure the target URL and other settings by setting environment variables in the `compose.yml` file or by accessing the `/config` page (e.g., `http://localhost:1337/config`).
 
     **Environment Variables:**
-    - `TARGET_URL`: The URL to proxy (default: `https://www.google.com/`)
-    - `PORT`: The internal port (default: `1337`)
+    - `TARGET_URL`: The URL to proxy (default: `https://github.com/leraptor65/centralizedtransmissionandremoteloading`)
     - `SCALE_FACTOR`: Initial scale factor (default: `1.0`)
 
 ### Local Development / Manual Build

@@ -3,7 +3,12 @@ node_modules/
 
 # Ignore the persistent data directory
 # This may contain the target URL, which could be sensitive
-data/
+# data/ (Legacy)
+
+# Configuration files
+config.json
+cookies.json
+target_url.txt
 
 # Ignore npm debug logs
 npm-debug.log*

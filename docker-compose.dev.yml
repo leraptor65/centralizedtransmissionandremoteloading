@@ -4,10 +4,9 @@ services:
     image: centralizedtransmissionandremoteloading:dev
     container_name: centralizedtransmissionandremoteloading
     ports:
-      - "${PORT:-1337}:1337"
+      - "1337:1337"
     volumes:
-      - ./data:/usr/src/app/data
-    environment:
-      - PORT=1337
-      - TARGET_URL=${TARGET_URL:-https://www.google.com/}
+      - .:/usr/src/app/config_mount
+      # environment:
+      # - PORT=1337
     restart: unless-stopped

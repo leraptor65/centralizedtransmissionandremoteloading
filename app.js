@@ -32,12 +32,14 @@ function broadcastReload() {
 
 // --- Configuration Management ---
 let lastReportedHeight = 'N/A';
-const dataDir = path.join(__dirname, 'data');
+// Map the host root (mounted at /usr/src/app/config_mount) as the data directory
+const dataDir = path.join(__dirname, 'config_mount');
 const configPath = path.join(dataDir, 'config.json');
 const cookiePath = path.join(dataDir, 'cookies.json'); // Path for persistent cookies
+const targetUrlPath = path.join(dataDir, 'target_url.txt'); // Path for raw target URL
 
-const defaultConfig = {
-    targetUrl: process.env.TARGET_URL || 'https://www.google.com/',
+// Default non-URL configuration
+const defaultEnvConfig = {
     scaleFactor: parseFloat(process.env.SCALE_FACTOR) || 1.0,
     autoScroll: process.env.AUTO_SCROLL === 'true',
     scrollSpeed: parseInt(process.env.SCROLL_SPEED) || 50,
@@ -45,19 +47,52 @@ const defaultConfig = {
 };
 
 function getConfig() {
-    if (!fs.existsSync(configPath)) return defaultConfig;
-    try {
-        const rawData = fs.readFileSync(configPath, 'utf8');
-        return { ...defaultConfig, ...JSON.parse(rawData.trim() || '{}') };
-    } catch (error) {
-        console.error("Error reading config, using defaults:", error);
-        return defaultConfig;
+    const defaultTargetUrl = 'https://github.com/leraptor65/centralizedtransmissionandremoteloading';
+    let targetUrl = '';
+
+    // Read target_url.txt if it exists
+    if (fs.existsSync(targetUrlPath)) {
+        try {
+            targetUrl = fs.readFileSync(targetUrlPath, 'utf8').trim();
+        } catch (e) {
+            console.error("Error reading target_url.txt:", e);
+        }
     }
+
+    // If missing or empty, use default and persist it
+    if (!targetUrl) {
+        targetUrl = defaultTargetUrl;
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        try {
+            fs.writeFileSync(targetUrlPath, targetUrl);
+        } catch (e) {
+            console.error("Error writing default target_url.txt:", e);
+        }
+    }
+
+    let config = { ...defaultEnvConfig };
+
+    // Read config.json for other settings
+    if (fs.existsSync(configPath)) {
+        try {
+            const rawData = fs.readFileSync(configPath, 'utf8');
+            config = { ...config, ...JSON.parse(rawData.trim() || '{}') };
+        } catch (error) {
+            console.error("Error reading config.json, falling back to defaults for params:", error);
+        }
+    }
+
+    return { ...config, targetUrl };
 }
 
 function saveConfig(config) {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    // Split config: URL goes to txt, rest goes to json
+    const { targetUrl, ...otherConfig } = config;
+
+    fs.writeFileSync(targetUrlPath, targetUrl || '');
+    fs.writeFileSync(configPath, JSON.stringify(otherConfig, null, 2));
 }
 
 // --- Cookie Management Functions ---
@@ -121,7 +156,12 @@ app.post('/config', express.urlencoded({ extended: true }), (req, res) => {
 
 app.post('/reset', (req, res) => {
     try {
-        saveConfig(defaultConfig);
+        // Reset to defaults (GitHub URL + default env params)
+        const defaults = {
+            targetUrl: 'https://github.com/leraptor65/centralizedtransmissionandremoteloading',
+            ...defaultEnvConfig
+        };
+        saveConfig(defaults);
         broadcastReload();
         res.redirect('/config');
     } catch (error) {
@@ -172,6 +212,41 @@ app.use('/', async (req, res) => {
 
     const targetUrl = originalUrl === '/' ? new URL(config.targetUrl) : new URL(originalUrl, target.origin);
 
+    // FIX: Disable caching for the root redirect to ensure config changes are reflected immediately
+    if (originalUrl === '/') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Surrogate-Control', 'no-store');
+    }
+
+    // FIX: Block known ad/tracking domains to prevent anti-adblock detection triggered by failed requests.
+    const blockList = [
+        'pagead2.googlesyndication.com',
+        'securepubads.g.doubleclick.net',
+        'google-analytics.com',
+        'googletagmanager.com',
+        'adsbygoogle.js',
+        'tpc.googlesyndication.com',
+        'doubleclick.net',
+        'fundingchoicesmessages.google.com',
+        'cmp.quantcast.com'
+    ];
+
+    if (blockList.some(domain => targetUrl.hostname.includes(domain) || targetUrl.pathname.includes(domain))) {
+        // Return a valid mock response so the client script thinks it loaded successfully.
+        console.log(`Blocking ad/tracker request: ${targetUrl.href}`);
+        if (targetUrl.pathname.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+            return res.send('// Blocked by proxy');
+        } else if (targetUrl.pathname.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+            return res.send('/* Blocked by proxy */');
+        } else {
+            return res.status(200).send('');
+        }
+    }
+
     try {
         const storedCookies = getCookies();
         const browserCookies = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
@@ -193,7 +268,7 @@ app.use('/', async (req, res) => {
             maxRedirects: 0, // We handle redirects manually
             data: (req.method !== 'GET' && req.method !== 'HEAD') ? req : undefined,
         });
-        
+
         const setCookieHeader = response.headers['set-cookie'];
         if (setCookieHeader) {
             const newCookies = getCookies();
@@ -215,7 +290,9 @@ app.use('/', async (req, res) => {
             const newLocation = new URL(locationHeader, targetUrl.origin);
             const proxiedRedirectUrl = `${proxyOrigin}${proxyHostPrefix}${newLocation.host}${newLocation.pathname}${newLocation.search}`;
             console.log(`Redirecting to: ${proxiedRedirectUrl}`);
-            return res.redirect(response.status, proxiedRedirectUrl);
+            // FIX: Force temporary redirect (307) to prevent browser caching of the rewritten redirect
+            // This ensures that if the target URL changes, the browser will re-evaluate '/' instead of using a cached redirect.
+            return res.redirect(307, proxiedRedirectUrl);
         }
 
         Object.keys(response.headers).forEach(key => {
@@ -283,9 +360,14 @@ app.use('/', async (req, res) => {
                     }
                     window.addEventListener('load', () => setTimeout(() => fetch('/report-height', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({height: document.documentElement.scrollHeight}) }), 2000));
                     const socket = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host);
-                    socket.addEventListener('message', e => e.data === 'reload' && window.location.reload());
+                    socket.addEventListener('message', e => {
+                        if (e.data === 'reload') {
+                            console.log('Configuration changed. Redirecting to home...');
+                            window.location.href = '/';
+                        }
+                    });
                 </script>`;
-            const styling = `<style>body{transform:scale(${config.scaleFactor});transform-origin:0 0;width:${100/config.scaleFactor}%;overflow-x:hidden;}</style>`;
+            const styling = `<style>body{transform:scale(${config.scaleFactor});transform-origin:0 0;width:${100 / config.scaleFactor}%;overflow-x:hidden;}</style>`;
             body = body.replace('</head>', `${styling}${injectedScripts}</head>`);
             res.send(body);
         } else {
@@ -293,8 +375,11 @@ app.use('/', async (req, res) => {
             stream.pipe(res);
         }
     } catch (error) {
-        console.error('Proxy error:', error.message);
-        res.status(500).send(`<h1>Proxy Error</h1><p>${error.message}</p>`);
+        console.error(`Proxy error for ${targetUrl.href}:`, error.message);
+        // FIX: Return 204 instead of 500 to prevent triggering client-side error handlers
+        if (!res.headersSent) {
+            res.status(204).send();
+        }
     }
 });
 
