@@ -303,7 +303,7 @@ const injectionsTemplate = `
                 const current = sequences[currentSequenceIndex];
                 window.scrollBy(0, (config.scrollSpeed / 1000) * deltaTime);
                 if (window.scrollY >= current.end) {
-                    currentSequenceIndex = (currentSequenceIndex + 1) % sequences.length;
+                    currentSequenceIndex = (currentSequenceIndex + 1) %% sequences.length;
                     window.scrollTo(0, sequences[currentSequenceIndex].start);
                     pauseUntil = Date.now() + PAUSE_DURATION_MS;
                 }
