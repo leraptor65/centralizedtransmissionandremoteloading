@@ -1,96 +1,55 @@
 # Centralized Transmission and Remote Loading (CTRL)
 
-A proxy to scale web pages for display, useful for displaying content on screens with different resolutions or scaling requirements.
+A lightweight proxy to scale and auto-scroll web pages for remote displays. Controlled entirely via environment variables.
 
 ## Deployment
 
-### Docker Hub (Recommended)
+### Docker (Recommended)
 
 You can easily deploy this using Docker Compose.
 
-1.  **Download the compose file:**
-    ```bash
-    wget https://raw.githubusercontent.com/leraptor65/centralizedtransmissionandremoteloading/main/compose.yml
-    ```
+1.  **Preparation:**
+    Ensure you have a `.env` file in your directory.
 
 2.  **Run it:**
     ```bash
-    # The configuration files (target_url.txt, etc.) will be created in the current directory
-    # Ensure the container (UID 1000) can write to the current directory if permission issues arise.
     docker compose up -d
     ```
 
 3.  **Configuration:**
-    The application runs on port `1337` by default.
-    You can configure the target URL and other settings by setting environment variables in the `compose.yml` file or by accessing the `/config` page (e.g., `http://localhost:1337/config`).
+    The application runs on port `1337` by default. Everything is configured via the `.env` file.
 
     **Environment Variables:**
-    - `TARGET_URL`: The URL to proxy (default: `https://github.com/leraptor65/centralizedtransmissionandremoteloading`)
-    - `SCALE_FACTOR`: Initial scale factor (default: `1.0`)
+    - `TARGET_URL`: The URL to proxy (e.g., `https://github.com/`)
+    - `SCALE_FACTOR`: Initial scale factor (e.g., `1.2`)
+    - `AUTO_SCROLL`: Enable auto-scrolling (`true`/`false`)
+    - `SCROLL_SPEED`: Speed in pixels per second (e.g., `50`)
+    - `SCROLL_SEQUENCE`: Custom scroll sections (e.g., `0-1000, 2000-3000`)
 
-### Local Development / Manual Build
+4.  **Persistent Data:**
+    Cookies and session data are stored in a `./data` folder automatically created on the host. To reset the proxy state (clear cookies), simply delete this folder and restart the container.
 
-If you want to build the application locally without Docker:
+### Local Development
 
 1.  **Prerequisites:**
-    *   Node.js 20+ (for frontend)
-    *   Go 1.23+ (for backend)
+    *   Go 1.23+
 
-2.  **Build the Frontend:**
+2.  **Run the Backend:**
     ```bash
-    cd frontend
-    npm install
-    npm run build
-    ```
-
-3.  **Prepare Backend Assets:**
-    ```bash
-    # Create the directory structure expected by the Go embed directive
-    mkdir -p ../backend/frontend/dist
-    # Copy build artifacts
-    cp -r dist/* ../backend/frontend/dist/
-    ```
-
-4.  **Run the Backend:**
-    ```bash
-    cd ../backend
+    cd backend
     go run .
     ```
 
-5.  Access the app at `http://localhost:1337`.
+3.  Access the app at `http://localhost:1337`.
 
 ## Features
 
-* **URL Display**: Show any public webpage through the proxy.
-* **Custom Scaling**: Zoom in or out of any webpage to make it fit your display perfectly.
-* **Advanced Auto-Scrolling**:
-    * Enable or disable auto-scrolling with a single click.
-    * Control the scroll speed in pixels per second.
-    * Define custom scroll sequences (e.g., `0-500, 1200-1800`) to focus on specific content sections.
-* **Live Page Height Reporting**: Automatically detects and displays the total pixel height of the target page to help you configure scroll sequences.
-* **Live Reload**: The main display page automatically reloads when you save a new configuration.
-* **Persistent Configuration**: Settings are saved to a Docker volume and persist even if the container is restarted or recreated.
-* **High Compatibility**: Fixes common proxying issues by handling CORS, cookies, redirects, and security headers.
-
-## Configuration Details
-Go to `/config` to set:
-- **Target URL**: The website you want to display.
-- **Scale Factor**: How much to zoom/scale the page (e.g., `0.75` for 75%).
-- **Auto Scroll**: Enable auto-scrolling.
-- **Scroll Speed**: Speed of the scroll.
-- **Scroll Sequence**: Advanced scrolling patterns.
-
-## Built With
-
-* [Go](https://go.dev/) - Backend API and Proxy logic
-* [React](https://reactjs.org/) - Frontend UI
-* [Vite](https://vitejs.dev/) - Frontend Build Tool
-* [Docker](https://www.docker.com/) - Containerization platform
-
-## Author
-
-* **leraptor65**
+* **URL Masking**: Stay on `localhost:1337` regardless of internal navigation.
+* **Custom Scaling**: Precise control over page zoom.
+* **Auto-Scrolling**: Automated movement through page sections.
+* **Persistent Sessions**: Cookies are saved to disk and reused across restarts.
+* **Zero UI**: Minimal footprint, purely driven by environment state.
 
 ## License
 
-This project is licensed under the MIT License - see the `LICENSE.md` file for details.
+This project is licensed under the MIT License.

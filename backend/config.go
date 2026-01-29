@@ -1,106 +1,87 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
-type HistoryItem struct {
-	URL       string `yaml:"url" json:"url"`
-	Timestamp int64  `yaml:"timestamp" json:"timestamp"`
-}
-
-// Basic struct for JSON serialization of cookies
 type Cookie struct {
-	Name   string `json:"name" yaml:"name"`
-	Value  string `json:"value" yaml:"value"`
-	Domain string `json:"domain" yaml:"domain"`
-	Path   string `json:"path" yaml:"path"`
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Domain string `json:"domain"`
+	Path   string `json:"path"`
 }
 
 type Config struct {
-	TargetURL      string        `yaml:"targetUrl" json:"targetUrl"`
-	ScaleFactor    float64       `yaml:"scaleFactor" json:"scaleFactor"`
-	AutoScroll     bool          `yaml:"autoScroll" json:"autoScroll"`
-	ScrollSpeed    int           `yaml:"scrollSpeed" json:"scrollSpeed"`
-	ScrollSequence string        `yaml:"scrollSequence" json:"scrollSequence"`
-	History        []HistoryItem `yaml:"history" json:"history"`
-	LastModified   int64         `yaml:"lastModified" json:"lastModified"`
-	CookieJar      []Cookie      `yaml:"cookieJar" json:"cookieJar"`
+	TargetURL       string   `json:"targetUrl"`
+	ScaleFactor     float64  `json:"scaleFactor"`
+	AutoScroll      bool     `json:"autoScroll"`
+	ScrollSpeed     int      `json:"scrollSpeed"`
+	ScrollSequence  string   `json:"scrollSequence"`
+	InterfaceLocked bool     `json:"interfaceLocked"`
+	LastModified    int64    `json:"lastModified"`
+	CookieJar       []Cookie `json:"cookieJar"`
 }
 
 var (
-	config       Config
-	configMutex  sync.RWMutex
-	dataDir      string
-	settingsPath string
+	config      Config
+	configMutex sync.RWMutex
+	startTime   int64
+	dataDir     string
+	cookiePath  string
 )
 
 func initConfig() error {
-	// Initialize default paths
-	// In Docker, we map volume to /usr/src/app/data, but for local dev let's match existing
-	ex, err := os.Getwd()
-	if err != nil {
-		return err
+	startTime = time.Now().UnixMilli()
+
+	// Setup Data Directory
+	dataDir = os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	cookiePath = filepath.Join(dataDir, "cookies.json")
+
+	// Ensure directory exists
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	// Check if we are in backend dir or root
-	if filepath.Base(ex) == "backend" {
-		dataDir = filepath.Join(filepath.Dir(ex), "config_mount")
-	} else {
-		dataDir = filepath.Join(ex, "config_mount")
+	targetURL := os.Getenv("TARGET_URL")
+	if targetURL == "" {
+		targetURL = "https://github.com/leraptor65/centralizedtransmissionandremoteloading"
 	}
 
-	settingsPath = filepath.Join(dataDir, "settings.yml")
-
-	// Ensure data directory exists
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			return fmt.Errorf("failed to create data directory: %w", err)
-		}
+	scaleFactor, _ := strconv.ParseFloat(os.Getenv("SCALE_FACTOR"), 64)
+	if scaleFactor <= 0 {
+		scaleFactor = 1.0
 	}
 
-	// Default Config
+	autoScroll := os.Getenv("AUTO_SCROLL") == "true"
+	scrollSpeed, _ := strconv.Atoi(os.Getenv("SCROLL_SPEED"))
+	if scrollSpeed <= 0 {
+		scrollSpeed = 50
+	}
+
 	config = Config{
-		TargetURL:    "https://github.com/leraptor65/centralizedtransmissionandremoteloading",
-		ScaleFactor:  1.0,
-		AutoScroll:   false,
-		ScrollSpeed:  50,
-		History:      []HistoryItem{},
-		LastModified: time.Now().UnixMilli(),
-		CookieJar:    []Cookie{},
+		TargetURL:       targetURL,
+		ScaleFactor:     scaleFactor,
+		AutoScroll:      autoScroll,
+		ScrollSpeed:     scrollSpeed,
+		ScrollSequence:  os.Getenv("SCROLL_SEQUENCE"),
+		InterfaceLocked: os.Getenv("INTERFACE_LOCKED") == "true",
+		LastModified:    startTime,
+		CookieJar:       []Cookie{},
 	}
 
-	return loadConfig()
-}
-
-func loadConfig() error {
-	configMutex.Lock()
-	defer configMutex.Unlock()
-
-	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		// Create default settings.yml if it doesn't exist
-		return saveConfigInternal()
-	}
-
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		return fmt.Errorf("failed to read settings.yml: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("failed to parse settings.yml: %w", err)
-	}
-
-	// Ensure LastModified is set if loading legacy config
-	if config.LastModified == 0 {
-		config.LastModified = time.Now().UnixMilli()
+	// Load persistent cookies
+	if err := loadCookies(); err != nil {
+		fmt.Printf("Warning: failed to load cookies: %v\n", err)
 	}
 
 	return nil
@@ -112,10 +93,31 @@ func GetConfig() Config {
 	return config
 }
 
-func UpdateCookies(cookies []*http.Cookie) {
+func loadCookies() error {
+	if _, err := os.Stat(cookiePath); os.IsNotExist(err) {
+		return nil
+	}
+	data, err := os.ReadFile(cookiePath)
+	if err != nil {
+		return err
+	}
 	configMutex.Lock()
 	defer configMutex.Unlock()
+	return json.Unmarshal(data, &config.CookieJar)
+}
 
+func saveCookies() error {
+	configMutex.RLock()
+	data, err := json.MarshalIndent(config.CookieJar, "", "  ")
+	configMutex.RUnlock()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cookiePath, data, 0644)
+}
+
+func UpdateCookies(cookies []*http.Cookie) {
+	configMutex.Lock()
 	updated := false
 	existingMap := make(map[string]int)
 	for i, c := range config.CookieJar {
@@ -123,8 +125,6 @@ func UpdateCookies(cookies []*http.Cookie) {
 	}
 
 	for _, c := range cookies {
-		// Simple logic: overwrite if name matches
-		// Real logic should consider Domain/Path but for proxy usage usually strict.
 		nc := Cookie{
 			Name:   c.Name,
 			Value:  c.Value,
@@ -143,61 +143,11 @@ func UpdateCookies(cookies []*http.Cookie) {
 			updated = true
 		}
 	}
+	configMutex.Unlock()
 
 	if updated {
-		// We don't necessarily bump lastModified for cookies as it triggers reload loop
-		// Only bump if we want to sync other settings.
-		// For shared session, strictly backend sync is enough for next request.
-		saveConfigInternal()
-	}
-}
-
-func UpdateConfig(newConfig Config) error {
-	configMutex.Lock()
-	defer configMutex.Unlock()
-
-	// Update History logic similar to Node.js version
-	if newConfig.TargetURL != "" && newConfig.TargetURL != config.TargetURL {
-		// Add to history
-		// Filter out existing
-		newHistory := []HistoryItem{}
-		newHistory = append(newHistory, HistoryItem{
-			URL:       newConfig.TargetURL,
-			Timestamp: time.Now().UnixMilli(),
-		})
-
-		for _, item := range config.History {
-			if item.URL != newConfig.TargetURL {
-				newHistory = append(newHistory, item)
-			}
-		}
-
-		// Cap at 20
-		if len(newHistory) > 20 {
-			newHistory = newHistory[:20]
-		}
-		newConfig.History = newHistory
-	} else {
-		// Preserve history if not changing URL
-		if len(newConfig.History) == 0 && len(config.History) > 0 {
-			// Keep old history if new one is empty (unless intent was to clear, but we assume safety here)
-			// Actually, typically the frontend sends the whole object.
-			// Let's trust the frontend, but if it's missing, maybe copy?
-			// But for safety, let's just stick to what was sent.
+		if err := saveCookies(); err != nil {
+			fmt.Printf("Error saving cookies: %v\n", err)
 		}
 	}
-
-	// Always update LastModified
-	newConfig.LastModified = time.Now().UnixMilli()
-
-	config = newConfig
-	return saveConfigInternal()
-}
-
-func saveConfigInternal() error {
-	data, err := yaml.Marshal(&config)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(settingsPath, data, 0644)
 }

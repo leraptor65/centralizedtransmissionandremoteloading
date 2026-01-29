@@ -1,11 +1,11 @@
 services:
-  centralizedtransmissionandremoteloading:
+  ctrl:
     image: leraptor65/centralizedtransmissionandremoteloading:latest
-    container_name: centralizedtransmissionandremoteloading
+    container_name: ctrl
     ports:
       - "1337:1337" # Host:Container
+    env_file:
+      - .env
     volumes:
-      - .:/root/config_mount
-      # environment:
-      # - PORT=1337 # Internal app port (defaults to 1337)
+      - ./data:/root/data
     restart: always
