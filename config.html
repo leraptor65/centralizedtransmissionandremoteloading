@@ -209,11 +209,72 @@
 
         <div class="info-box">
             <strong>Last Reported Page Height:</strong>
-            <!-- FIX: Added placeholder for height value -->
             <span id="pageHeight">%%PAGE_HEIGHT%%</span> pixels
             <small>Visit the main page and wait a few seconds to update this value.</small>
         </div>
+
+        <div id="history-section" style="margin-top: 2rem;">
+            <h3>History</h3>
+            <div id="history-list"
+                style="max-height: 200px; overflow-y: auto; background: #fafafa; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <!-- History items injected here -->
+            </div>
+        </div>
     </div>
+
+    <script id="history-data" type="application/json">%%HISTORY_ITEMS%%</script>
+    <script>
+        const historyData = JSON.parse(document.getElementById('history-data').textContent || '[]');
+        const historyList = document.getElementById('history-list');
+
+        // Auto-hide success message
+        const successMessage = document.querySelector('.success-message');
+        if (successMessage && successMessage.classList.contains('success')) {
+            setTimeout(() => {
+                successMessage.style.transition = 'opacity 0.5s ease';
+                successMessage.style.opacity = '0';
+                setTimeout(() => {
+                    successMessage.classList.remove('success');
+                    successMessage.style.opacity = '';
+                    successMessage.style.transition = '';
+                }, 500);
+            }, 3000);
+        }
+
+        if (historyData.length === 0) {
+            historyList.innerHTML = '<div style="padding: 1rem; text-align: center; color: #a0aec0;">No history yet</div>';
+        } else {
+            historyData.forEach(item => {
+                const div = document.createElement('div');
+                div.style.padding = '0.75rem';
+                div.style.borderBottom = '1px solid #edf2f7';
+                div.style.cursor = 'pointer';
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.alignItems = 'center';
+
+                // Truncate URL for display
+                const displayUrl = item.url.length > 50 ? item.url.substring(0, 47) + '...' : item.url;
+
+                div.innerHTML = `
+                    <span style="font-size: 0.9rem; color: #2d3748;">${displayUrl}</span>
+                    <span style="font-size: 0.75rem; color: #cbd5e0;">${new Date(item.timestamp).toLocaleDateString()}</span>
+                `;
+
+                div.onclick = () => {
+                    document.getElementById('targetUrl').value = item.url;
+                    // Optional: Visual feedback
+                    div.style.backgroundColor = '#e6fffa'; // Light teal
+                    setTimeout(() => div.style.backgroundColor = '', 200);
+                };
+
+                div.onmouseover = () => div.style.backgroundColor = '#f7fafc';
+                div.onmouseout = () => div.style.backgroundColor = '';
+
+                historyList.appendChild(div);
+            });
+        }
+    </script>
 </body>
 
 </html>

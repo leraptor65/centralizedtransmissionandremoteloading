@@ -1,0 +1,8 @@
+targetUrl: https://yahoo.com
+scaleFactor: 1
+autoScroll: false
+scrollSpeed: 50
+scrollSequence: ''
+history:
+  - url: https://yahoo.com
+    timestamp: 1769711043434

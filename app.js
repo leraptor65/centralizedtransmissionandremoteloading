@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 const { URL } = require('url');
 const http = require('http');
 const WebSocket = require('ws');
@@ -34,65 +35,88 @@ function broadcastReload() {
 let lastReportedHeight = 'N/A';
 // Map the host root (mounted at /usr/src/app/config_mount) as the data directory
 const dataDir = path.join(__dirname, 'config_mount');
-const configPath = path.join(dataDir, 'config.json');
+const settingsPath = path.join(dataDir, 'settings.yml');
 const cookiePath = path.join(dataDir, 'cookies.json'); // Path for persistent cookies
-const targetUrlPath = path.join(dataDir, 'target_url.txt'); // Path for raw target URL
 
-// Default non-URL configuration
-const defaultEnvConfig = {
+// Default configuration
+const defaultConfig = {
+    targetUrl: 'https://github.com/leraptor65/centralizedtransmissionandremoteloading',
     scaleFactor: parseFloat(process.env.SCALE_FACTOR) || 1.0,
     autoScroll: process.env.AUTO_SCROLL === 'true',
     scrollSpeed: parseInt(process.env.SCROLL_SPEED) || 50,
-    scrollSequence: process.env.SCROLL_SEQUENCE || ''
+    scrollSequence: process.env.SCROLL_SEQUENCE || '',
+    history: [] // Array of { url: string, timestamp: number }
 };
 
 function getConfig() {
-    const defaultTargetUrl = 'https://github.com/leraptor65/centralizedtransmissionandremoteloading';
-    let targetUrl = '';
+    let config = { ...defaultConfig };
 
-    // Read target_url.txt if it exists
-    if (fs.existsSync(targetUrlPath)) {
-        try {
-            targetUrl = fs.readFileSync(targetUrlPath, 'utf8').trim();
-        } catch (e) {
-            console.error("Error reading target_url.txt:", e);
-        }
-    }
-
-    // If missing or empty, use default and persist it
-    if (!targetUrl) {
-        targetUrl = defaultTargetUrl;
+    // Create defaults if settings.yml doesn't exist
+    if (!fs.existsSync(settingsPath)) {
         if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
         try {
-            fs.writeFileSync(targetUrlPath, targetUrl);
+            // Check for legacy files to migrate (best effort)
+            const targetUrlPath = path.join(dataDir, 'target_url.txt');
+            const configPath = path.join(dataDir, 'config.json');
+
+            if (fs.existsSync(targetUrlPath)) {
+                try {
+                    config.targetUrl = fs.readFileSync(targetUrlPath, 'utf8').trim() || defaultConfig.targetUrl;
+                } catch (e) { }
+            }
+            if (fs.existsSync(configPath)) {
+                try {
+                    const legacyConfig = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+                    config = { ...config, ...legacyConfig };
+                } catch (e) { }
+            }
+
+            fs.writeFileSync(settingsPath, yaml.dump(config));
         } catch (e) {
-            console.error("Error writing default target_url.txt:", e);
+            console.error("Error creating default settings.yml:", e);
         }
-    }
-
-    let config = { ...defaultEnvConfig };
-
-    // Read config.json for other settings
-    if (fs.existsSync(configPath)) {
+    } else {
         try {
-            const rawData = fs.readFileSync(configPath, 'utf8');
-            config = { ...config, ...JSON.parse(rawData.trim() || '{}') };
+            const rawData = fs.readFileSync(settingsPath, 'utf8');
+            const loaded = yaml.load(rawData);
+            config = { ...config, ...loaded };
         } catch (error) {
-            console.error("Error reading config.json, falling back to defaults for params:", error);
+            console.error("Error reading settings.yml, falling back to defaults:", error);
         }
     }
 
-    return { ...config, targetUrl };
+    return config;
 }
 
-function saveConfig(config) {
+function saveConfig(newConfig) {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-    // Split config: URL goes to txt, rest goes to json
-    const { targetUrl, ...otherConfig } = config;
+    let currentConfig = getConfig();
 
-    fs.writeFileSync(targetUrlPath, targetUrl || '');
-    fs.writeFileSync(configPath, JSON.stringify(otherConfig, null, 2));
+    // Update history
+    let history = currentConfig.history || [];
+    if (newConfig.targetUrl && newConfig.targetUrl !== currentConfig.targetUrl) {
+        // Remove if exists to bubble to top
+        history = history.filter(item => item.url !== newConfig.targetUrl);
+        history.unshift({ url: newConfig.targetUrl, timestamp: Date.now() });
+        // Cap history at 20 items
+        if (history.length > 20) history = history.slice(0, 20);
+    }
+
+    // Allow restoring explicit history from frontend save if needed, but usually we just append
+    // If the frontend sends full history, use it? For now let's just append new URLs.
+
+    const configToSave = {
+        ...currentConfig,
+        ...newConfig,
+        history
+    };
+
+    try {
+        fs.writeFileSync(settingsPath, yaml.dump(configToSave));
+    } catch (e) {
+        throw new Error(`Failed to write settings.yml: ${e.message}`);
+    }
 }
 
 // --- Cookie Management Functions ---
@@ -137,7 +161,8 @@ app.get('/config', (req, res) => {
             .replace('%%SCROLL_SEQUENCE%%', config.scrollSequence || '')
             .replace('%%AUTOSCROLL_CHECKED%%', config.autoScroll ? 'checked' : '')
             .replace('%%PAGE_HEIGHT%%', lastReportedHeight)
-            .replace('%%SUCCESS_CLASS%%', req.query.saved ? 'success' : '');
+            .replace('%%SUCCESS_CLASS%%', req.query.saved ? 'success' : '')
+            .replace('%%HISTORY_ITEMS%%', JSON.stringify(config.history || []));
         res.send(finalHtml);
     });
 });
@@ -156,12 +181,17 @@ app.post('/config', express.urlencoded({ extended: true }), (req, res) => {
 
 app.post('/reset', (req, res) => {
     try {
-        // Reset to defaults (GitHub URL + default env params)
-        const defaults = {
-            targetUrl: 'https://github.com/leraptor65/centralizedtransmissionandremoteloading',
-            ...defaultEnvConfig
-        };
-        saveConfig(defaults);
+        // Reset to defaults
+        const defaults = { ...defaultConfig };
+        // Keep existing history on reset? Or clear it? 
+        // Let's clear history on full reset or provide separate options.
+        // For now, full reset resets history too as per "defaults"
+
+        // Actually, let's keep history if possible, or maybe user wants meaningful reset. 
+        // Let's just reset config params but keep history?
+        // "Reset to Default" implies factory reset. Let's reset everything.
+
+        fs.writeFileSync(settingsPath, yaml.dump(defaults));
         broadcastReload();
         res.redirect('/config');
     } catch (error) {
@@ -309,66 +339,105 @@ app.use('/', async (req, res) => {
         else if (contentEncoding === 'deflate') stream = stream.pipe(zlib.createInflate());
         else if (contentEncoding === 'br') stream = stream.pipe(zlib.createBrotliDecompress());
 
-        if (contentType.includes('text/html')) {
+        const validTypes = ['text/html', 'text/css', 'application/javascript', 'application/x-javascript', 'text/javascript'];
+        let isText = validTypes.some(type => contentType.includes(type));
+
+        if (isText) {
             const chunks = [];
             for await (const chunk of stream) chunks.push(chunk);
             let body = Buffer.concat(chunks).toString();
 
-            // FIX: More reliable URL rewriting
-            // 1. Rewrite absolute URLs (e.g., https://some.other.domain.com/path)
-            body = body.replace(/(['"])(https?:)?\/\/([^/'"]+)/g, (match, quote, protocol, host) => {
-                if (host === proxyHost) return match; // Don't rewrite our own host
-                return `${quote}${proxyOrigin}${proxyHostPrefix}${host}`;
+            // Helper to rewrite a single URL
+            const rewriteUrl = (url) => {
+                if (!url || url.startsWith('data:') || url.startsWith('#') || url.startsWith('mailto:')) return url;
+                // Don't rewrite if already proxied (simple check)
+                if (url.includes(proxyHostPrefix)) return url;
+
+                try {
+                    // Resolve relative against the current target URL
+                    const resolved = new URL(url, targetUrl.href);
+                    // Rewrite to proxy format
+                    return `${proxyOrigin}${proxyHostPrefix}${resolved.host}${resolved.pathname}${resolved.search}`;
+                } catch (e) {
+                    return url; // Fallback
+                }
+            };
+
+            // 1. CSS URL rewriting (url('...')) - Global replace
+            body = body.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, url) => {
+                return `url(${quote}${rewriteUrl(url)}${quote})`;
             });
 
-            // 2. Rewrite root-relative URLs (e.g., href="/css/style.css")
-            body = body.replace(/(src|href|action)=(['"])(\/[^/"'][^'"]*)\2/gi, `$1=$2${proxyOrigin}${proxyHostPrefix}${target.host}$3$2`);
+            // 2. HTML Attribute rewriting (src, href, action, poster)
+            if (contentType.includes('text/html')) {
+                body = body.replace(/(href|src|action|poster)=(['"])(.*?)\2/gi, (match, attr, quote, url) => {
+                    return `${attr}=${quote}${rewriteUrl(url)}${quote}`;
+                });
 
-            body = body.replace(/integrity="[^"]*"/gi, '').replace(/\s+crossorigin(="[^"]*")?/gi, '');
-            const injectedScripts = `
-                <script>
-                    const config = { autoScroll: ${config.autoScroll}, scrollSpeed: ${config.scrollSpeed}, scrollSequence: "${config.scrollSequence || ''}" };
-                    if (config.autoScroll) {
-                        document.addEventListener('DOMContentLoaded', () => {
-                            let lastTime = 0, currentSequenceIndex = 0, sequences = [], pauseUntil = 0;
-                            const PAUSE_DURATION_MS = 3000;
-                            function parseSequences() {
-                                const pageHeight = document.documentElement.scrollHeight - window.innerHeight;
-                                if (!config.scrollSequence.trim()) sequences.push({ start: 0, end: pageHeight });
-                                else {
-                                    sequences = config.scrollSequence.split(',').map(s => s.trim().split('-').map(Number)).filter(p => p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])).map(p => ({ start: p[0], end: Math.min(p[1], pageHeight) }));
-                                    if (sequences.length === 0) sequences.push({ start: 0, end: pageHeight });
-                                }
-                            }
-                            function scrollStep(timestamp) {
-                                if (!lastTime) lastTime = timestamp;
-                                const deltaTime = timestamp - lastTime;
-                                lastTime = timestamp;
-                                if (Date.now() < pauseUntil) { requestAnimationFrame(scrollStep); return; }
-                                const current = sequences[currentSequenceIndex];
-                                window.scrollBy(0, (config.scrollSpeed / 1000) * deltaTime);
-                                if (window.scrollY >= current.end) {
-                                    currentSequenceIndex = (currentSequenceIndex + 1) % sequences.length;
-                                    window.scrollTo(0, sequences[currentSequenceIndex].start);
-                                    pauseUntil = Date.now() + PAUSE_DURATION_MS;
-                                }
-                                requestAnimationFrame(scrollStep);
-                            }
-                            parseSequences();
-                            if (sequences.length > 0) { window.scrollTo(0, sequences[0].start); requestAnimationFrame(scrollStep); }
-                        });
-                    }
-                    window.addEventListener('load', () => setTimeout(() => fetch('/report-height', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({height: document.documentElement.scrollHeight}) }), 2000));
-                    const socket = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host);
-                    socket.addEventListener('message', e => {
-                        if (e.data === 'reload') {
-                            console.log('Configuration changed. Redirecting to home...');
-                            window.location.href = '/';
+                // 3. HTML srcset rewriting
+                body = body.replace(/srcset=(['"])(.*?)\1/gi, (match, quote, srcset) => {
+                    const newSrcset = srcset.split(',').map(entry => {
+                        const parts = entry.trim().split(/\s+/);
+                        const url = parts[0];
+                        if (url) {
+                            parts[0] = rewriteUrl(url);
+                            return parts.join(' ');
                         }
-                    });
-                </script>`;
-            const styling = `<style>body{transform:scale(${config.scaleFactor});transform-origin:0 0;width:${100 / config.scaleFactor}%;overflow-x:hidden;}</style>`;
-            body = body.replace('</head>', `${styling}${injectedScripts}</head>`);
+                        return entry;
+                    }).join(', ');
+                    return `srcset=${quote}${newSrcset}${quote}`;
+                });
+
+                // 4. Integrity and crossorigin removal
+                body = body.replace(/integrity="[^"]*"/gi, '').replace(/\s+crossorigin(="[^"]*")?/gi, '');
+
+                // Inject Custom Scripts (only for HTML)
+                const injectedScripts = `
+                    <script>
+                        const config = { autoScroll: ${config.autoScroll}, scrollSpeed: ${config.scrollSpeed}, scrollSequence: "${config.scrollSequence || ''}" };
+                        if (config.autoScroll) {
+                            document.addEventListener('DOMContentLoaded', () => {
+                                let lastTime = 0, currentSequenceIndex = 0, sequences = [], pauseUntil = 0;
+                                const PAUSE_DURATION_MS = 3000;
+                                function parseSequences() {
+                                    const pageHeight = document.documentElement.scrollHeight - window.innerHeight;
+                                    if (!config.scrollSequence.trim()) sequences.push({ start: 0, end: pageHeight });
+                                    else {
+                                        sequences = config.scrollSequence.split(',').map(s => s.trim().split('-').map(Number)).filter(p => p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])).map(p => ({ start: p[0], end: Math.min(p[1], pageHeight) }));
+                                        if (sequences.length === 0) sequences.push({ start: 0, end: pageHeight });
+                                    }
+                                }
+                                function scrollStep(timestamp) {
+                                    if (!lastTime) lastTime = timestamp;
+                                    const deltaTime = timestamp - lastTime;
+                                    lastTime = timestamp;
+                                    if (Date.now() < pauseUntil) { requestAnimationFrame(scrollStep); return; }
+                                    const current = sequences[currentSequenceIndex];
+                                    window.scrollBy(0, (config.scrollSpeed / 1000) * deltaTime);
+                                    if (window.scrollY >= current.end) {
+                                        currentSequenceIndex = (currentSequenceIndex + 1) % sequences.length;
+                                        window.scrollTo(0, sequences[currentSequenceIndex].start);
+                                        pauseUntil = Date.now() + PAUSE_DURATION_MS;
+                                    }
+                                    requestAnimationFrame(scrollStep);
+                                }
+                                parseSequences();
+                                if (sequences.length > 0) { window.scrollTo(0, sequences[0].start); requestAnimationFrame(scrollStep); }
+                            });
+                        }
+                        window.addEventListener('load', () => setTimeout(() => fetch('/report-height', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({height: document.documentElement.scrollHeight}) }), 2000));
+                        const socket = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host);
+                        socket.addEventListener('message', e => {
+                            if (e.data === 'reload') {
+                                console.log('Configuration changed. Redirecting to home...');
+                                window.location.href = '/';
+                            }
+                        });
+                    </script>`;
+                const styling = `<style>body{transform:scale(${config.scaleFactor});transform-origin:0 0;width:${100 / config.scaleFactor}%;overflow-x:hidden;}</style>`;
+                body = body.replace('</head>', `${styling}${injectedScripts}</head>`);
+            }
+
             res.send(body);
         } else {
             res.status(response.status);
