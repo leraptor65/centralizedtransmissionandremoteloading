@@ -10,7 +10,7 @@ const zlib = require('zlib');
 const cookie = require('cookie'); // For parsing and serializing cookies
 
 const app = express();
-const port = 1337;
+const port = process.env.PORT || 1337;
 
 // --- Middleware and Server Setup ---
 app.use(cors());
@@ -37,11 +37,11 @@ const configPath = path.join(dataDir, 'config.json');
 const cookiePath = path.join(dataDir, 'cookies.json'); // Path for persistent cookies
 
 const defaultConfig = {
-    targetUrl: 'https://www.google.com/',
-    scaleFactor: 1.0,
-    autoScroll: false,
-    scrollSpeed: 50,
-    scrollSequence: ''
+    targetUrl: process.env.TARGET_URL || 'https://www.google.com/',
+    scaleFactor: parseFloat(process.env.SCALE_FACTOR) || 1.0,
+    autoScroll: process.env.AUTO_SCROLL === 'true',
+    scrollSpeed: parseInt(process.env.SCROLL_SPEED) || 50,
+    scrollSequence: process.env.SCROLL_SEQUENCE || ''
 };
 
 function getConfig() {

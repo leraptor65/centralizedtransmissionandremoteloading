@@ -10,3 +10,5 @@ npm-debug.log*
 
 # Ignore environment variables (if you ever add one)
 .env
+build.sh
+publish.sh

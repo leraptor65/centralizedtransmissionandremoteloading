@@ -1,5 +1,5 @@
 {
-  "name": "web-scaler-proxy",
+  "name": "centralizedtransmissionandremoteloading",
   "version": "1.0.0",
   "description": "A proxy to scale web pages for display.",
   "main": "app.js",
@@ -13,4 +13,3 @@
     "ws": "^8.17.1"
   }
 }
-
