@@ -5,7 +5,7 @@ services:
     ports:
       - "1337:1337" # Host:Container
     volumes:
-      - .:/usr/src/app/config_mount
+      - .:/root/config_mount
       # environment:
       # - PORT=1337 # Internal app port (defaults to 1337)
     restart: always

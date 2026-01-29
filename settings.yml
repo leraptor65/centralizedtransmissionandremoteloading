@@ -1,8 +1,10 @@
-targetUrl: https://yahoo.com
+targetUrl: https://google.com
 scaleFactor: 1
 autoScroll: false
 scrollSpeed: 50
-scrollSequence: ''
+scrollSequence: ""
 history:
-  - url: https://yahoo.com
-    timestamp: 1769711043434
+    - url: https://google.com
+      timestamp: 1769712623413
+    - url: https://yahoo.com
+      timestamp: 1769711043434

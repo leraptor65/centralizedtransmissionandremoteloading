@@ -1,29 +1,32 @@
-# Use a lightweight Node.js image
-FROM node:20-slim
-
-# Set the working directory inside the container
-WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json (if available)
-COPY package*.json ./
+# Stage 1: Build React Frontend
+FROM node:lts-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
 RUN npm install
+COPY frontend/ .
+RUN npm run build
 
-# Copy the rest of the application code
-COPY . .
+# Stage 2: Build Go Backend
+FROM golang:1.25-alpine AS backend-builder
+WORKDIR /app/backend
+COPY backend/go.* ./
+RUN go mod download
+COPY backend/ .
+# Copy built assets from frontend stage
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+# Build static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-# FIX: Create the data directory and set ownership before mounting the volume.
-# This ensures the 'node' user can write to the volume from the start.
-RUN mkdir -p /usr/src/app/data && chown -R node:node /usr/src/app
+# Stage 3: Final Image
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=backend-builder /app/backend/server .
 
-# This directory will hold our persistent configuration
-VOLUME /usr/src/app/data
-
-# Switch to the non-root node user for better security
-USER node
-
-# Expose the port the app runs on
+# Expose port
 EXPOSE 1337
 
-# The command to start the application
-CMD ["node", "app.js"]
+# Volume for config
+VOLUME ["/root/config_mount"]
 
+CMD ["./server"]

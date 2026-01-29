@@ -6,7 +6,7 @@ services:
     ports:
       - "1337:1337"
     volumes:
-      - .:/usr/src/app/config_mount
+      - .:/root/config_mount
       # environment:
       # - PORT=1337
     restart: unless-stopped

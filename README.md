@@ -30,15 +30,34 @@ You can easily deploy this using Docker Compose.
 
 ### Local Development / Manual Build
 
-If you want to build the image locally instead of pulling from Docker Hub:
+If you want to build the application locally without Docker:
 
-1.  Clone the repository.
-2.  Build and run using Docker Compose:
+1.  **Prerequisites:**
+    *   Node.js 20+ (for frontend)
+    *   Go 1.23+ (for backend)
+
+2.  **Build the Frontend:**
     ```bash
-    # Build the image and start the container
-    docker compose -f docker-compose.dev.yml up -d --build
+    cd frontend
+    npm install
+    npm run build
     ```
-3.  Access the app at `http://localhost:1337`.
+
+3.  **Prepare Backend Assets:**
+    ```bash
+    # Create the directory structure expected by the Go embed directive
+    mkdir -p ../backend/frontend/dist
+    # Copy build artifacts
+    cp -r dist/* ../backend/frontend/dist/
+    ```
+
+4.  **Run the Backend:**
+    ```bash
+    cd ../backend
+    go run .
+    ```
+
+5.  Access the app at `http://localhost:1337`.
 
 ## Features
 
@@ -63,9 +82,9 @@ Go to `/config` to set:
 
 ## Built With
 
-* [Node.js](https://nodejs.org/) - JavaScript runtime environment
-* [Express.js](https://expressjs.com/) - Web framework for Node.js
-* [Axios](https://axios-http.com/) - Promise-based HTTP client
+* [Go](https://go.dev/) - Backend API and Proxy logic
+* [React](https://reactjs.org/) - Frontend UI
+* [Vite](https://vitejs.dev/) - Frontend Build Tool
 * [Docker](https://www.docker.com/) - Containerization platform
 
 ## Author
