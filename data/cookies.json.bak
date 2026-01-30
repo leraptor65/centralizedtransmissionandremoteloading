@@ -1,0 +1,122 @@
+[
+  {
+    "name": "_gh_sess",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "logged_in",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "_octo",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "WMF-Last-Access",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "WMF-Last-Access-Global",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "WMF-DP",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "GeoIP",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "NetworkProbeLimit",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "WMF-Uniq",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "__Secure-STRP",
+    "value": "AD6DoguCPn0SXQvaY6M8YeFNrzWe611uY0q_DfoHUWBtxY6Jakmz5oRL_4b0YMN2zpBy9ZQuyMg4lyf2tTv5Y9v9iNOZO5IKwg",
+    "domain": ".google.com",
+    "path": "/"
+  },
+  {
+    "name": "__Host-GAPS",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "cpu_bucket",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "preferred_color_mode",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "tz",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "VEECid",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "enwikimwuser-sessionId",
+    "value": "",
+    "domain": "www.google.com",
+    "path": "/"
+  },
+  {
+    "name": "AEC",
+    "value": "AaJma5stAkFUkVcITTECWHRFSs2o4JIVVJ7_vP78dEJenI_tUQlS-szYwSs",
+    "domain": ".google.com",
+    "path": "/"
+  },
+  {
+    "name": "NID",
+    "value": "528=HSV1F8mwdI8OiiCrduud0TJG_nV-ic-xq1qKxAEkVVbL7QG621LWk6CTkivUa0qRKujXKvvkPLOD3-96dxY4hcxlILuqv1fYHb6CkS-P5wWte-SUBPebLPNsR1x6d4S7Djo6mlsltqEA6u5KdYbanQURZjI_zNQOIlT1_KE4H5C-_l8YnGb9roq0ydK4_hDRLnG5tThxSGmq5AiKPzyDYUI5u07-D3gniNqKQ4W0Nu9o1_uHW2U",
+    "domain": ".google.com",
+    "path": "/"
+  },
+  {
+    "name": "__Secure-BUCKET",
+    "value": "CLEH",
+    "domain": ".google.com",
+    "path": "/"
+  },
+  {
+    "name": "SNID",
+    "value": "AEEKqIv5RaQPGv5w3aJ4JrploBLYJdp91EsLF83V-aGVdXeozE3OhI3MFpXPfYoWWMmw1-cZTtYXXY7wJyylQ_Pso0tq-pLULA",
+    "domain": ".google.com",
+    "path": "/verify"
+  }
+]
