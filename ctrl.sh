@@ -1,6 +1,12 @@
 #!/bin/bash
 
-BASE_URL="http://localhost:1337"
+# Load .env if it exists
+if [ -f .env ]; then
+    export $(cat .env | xargs)
+fi
+
+PORT="${CTRL_PORT:-1337}"
+BASE_URL="http://localhost:$PORT"
 
 function show_help {
     echo "🎮 CTRL Master Control Script"

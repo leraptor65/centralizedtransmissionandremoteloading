@@ -1,6 +1,6 @@
 services:
   ctrl:
-    image: leraptor65/centralizedtransmissionandremoteloading:testing
+    image: leraptor65/centralizedtransmissionandremoteloading:latest
     container_name: ctrl_app
     ports:
       - "1337:1337"
@@ -9,8 +9,10 @@ services:
       - SCALE_FACTOR=1.0
       - AUTO_SCROLL=false
       - SCROLL_SPEED=10
+      - SCRIPT_DIR=/host
     volumes:
       - ./data:/app/data
+      - ./:/host
     security_opt:
       - seccomp=unconfined
     restart: unless-stopped

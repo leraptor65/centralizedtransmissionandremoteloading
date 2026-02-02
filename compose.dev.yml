@@ -8,7 +8,9 @@ services:
       - SCALE_FACTOR=1.0
       - AUTO_SCROLL=false
       - SCROLL_SPEED=10
+      - SCRIPT_DIR=/host
     volumes:
       - ./data:/app/data
+      - ./:/host
     security_opt:
       - seccomp:unconfined

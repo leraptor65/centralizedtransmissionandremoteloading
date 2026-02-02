@@ -32,8 +32,12 @@ func main() {
 	cfg = LoadConfig()
 	log.Printf("Starting CTRL (Headless Mode) for: %s", cfg.TargetURL)
 
-	// Ensure ctrl.sh exists in data dir
-	ensureCtrlScript(cfg.DataDir)
+	// Ensure ctrl.sh exists in SCRIPT_DIR (or current dir)
+	scriptDir := os.Getenv("SCRIPT_DIR")
+	if scriptDir == "" {
+		scriptDir = "."
+	}
+	ensureCtrlScript(scriptDir)
 
 	// 1. Setup Chromedp
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -355,7 +359,13 @@ func ensureCtrlScript(dir string) {
 	scriptPath := filepath.Join(dir, "ctrl.sh")
 	content := `#!/bin/bash
 
-BASE_URL="http://localhost:1337"
+# Load .env if it exists
+if [ -f .env ]; then
+    export $(cat .env | xargs)
+fi
+
+PORT="${CTRL_PORT:-1337}"
+BASE_URL="http://localhost:$PORT"
 
 function show_help {
     echo "🎮 CTRL Master Control Script"
