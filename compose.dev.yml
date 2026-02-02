@@ -1,0 +1,14 @@
+services:
+  ctrl:
+    build: .
+    ports:
+      - "1337:1337"
+    environment:
+      - TARGET_URL=https://github.com/leraptor65
+      - SCALE_FACTOR=1.0
+      - AUTO_SCROLL=false
+      - SCROLL_SPEED=10
+    volumes:
+      - ./data:/app/data
+    security_opt:
+      - seccomp:unconfined

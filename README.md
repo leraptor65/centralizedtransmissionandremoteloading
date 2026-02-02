@@ -1,55 +1,77 @@
-# Centralized Transmission and Remote Loading (CTRL)
+# C.T.R.L. (Centralized Transmission and Remote Loading)
 
-A lightweight proxy to scale and auto-scroll web pages for remote displays. Controlled entirely via environment variables.
+A lightweight, headless Chrome automation tool driven by a simple HTTP API. Designed for displaying web dashboards, digital signage, or kiosks with remote control capabilities.
 
-## Deployment
+## 🚀 Quick Start
 
-### Docker (Recommended)
+You don't need to clone the repository to run this. Just grab the `compose.yml` file.
 
-You can easily deploy this using Docker Compose.
+1.  **Download `compose.yml`**
+    Create a file named `compose.yml` with the following content (or download it from this repository):
 
-1.  **Preparation:**
-    Ensure you have a `.env` file in your directory.
+    ```yaml
+    services:
+      ctrl:
+        image: leraptor65/centralizedtransmissionandremoteloading:latest
+        container_name: ctrl_app
+        ports:
+          - "1337:1337" # Host:Container (Can change Host port, e.g., "8080:1337")
+        environment:
+          - TARGET_URL=https://github.com/leraptor65
+          - SCALE_FACTOR=1.0
+          - AUTO_SCROLL=false
+          - SCROLL_SPEED=10
+        volumes:
+          - ./data:/app/data
+        security_opt:
+          - seccomp=unconfined
+        restart: unless-stopped
+    ```
 
-2.  **Run it:**
+2.  **Run the Container**
     ```bash
     docker compose up -d
     ```
 
-3.  **Configuration:**
-    The application runs on port `1337` by default. Everything is configured via the `.env` file.
+3.  **Control the Display**
+    Upon startup, the container **automatically generates a control script** in your data folder.
 
-    **Environment Variables:**
-    - `TARGET_URL`: The URL to proxy (e.g., `https://github.com/`)
-    - `SCALE_FACTOR`: Initial scale factor (e.g., `1.2`)
-    - `AUTO_SCROLL`: Enable auto-scrolling (`true`/`false`)
-    - `SCROLL_SPEED`: Speed in pixels per second (e.g., `50`)
-    - `SCROLL_SEQUENCE`: Custom scroll sections (e.g., `0-1000, 2000-3000`)
+    You can access the stream viewer at: `http://localhost:1337` (or your defined host port).
 
-4.  **Persistent Data:**
-    Cookies and session data are stored in a `./data` folder automatically created on the host. To reset the proxy state (clear cookies), simply delete this folder and restart the container.
+## 🛠️ Configuration
 
-### Local Development
+| Environment Variable | Default | Description |
+| -------------------- | ------- | ----------- |
+| `TARGET_URL` | (GitHub) | The URL to display on load. |
+| `SCALE_FACTOR` | `1.0` | Zoom level (e.g. `1.5` for 150%). |
+| `AUTO_SCROLL` | `false` | Enable/Disable auto-scroll loops. |
+| `SCROLL_SPEED` | `10` | Pixels per step for auto-scroll. |
 
-1.  **Prerequisites:**
-    *   Go 1.23+
+## 🏗️ Development & Building
 
-2.  **Run the Backend:**
+If you wish to modify the code, you can build the project manually.
+
+**Prerequisites:**
+*   Docker
+*   Go 1.23+ (optional, for local run without Docker)
+
+**Build Helper:**
+This repository includes helper scripts `build.sh` and `publish.sh` for development convenience. **Note:** These scripts are excluded from the repository and Docker Hub images to prevent accidental publishing.
+
+**Manual Build:**
+
+1.  Clone the repository.
+2.  Build the Docker image:
     ```bash
-    cd backend
-    go run .
+    docker build -t ctrl-local .
+    ```
+3.  Run your local build:
+    ```bash
+    docker run -d -p 1337:1337 -v $(pwd)/data:/app/data --name ctrl-dev ctrl-local
     ```
 
-3.  Access the app at `http://localhost:1337`.
+## 📝 Notes
 
-## Features
+*   **`ctrl.sh`**: This script is generated inside the `/app/data` volume (mapped to `./data` on your host) every time the container starts. This ensures you always have the control script matching your current version.
+*   **Security**: The container runs with `seccomp=unconfined` to allow Chrome to run properly in headless mode.
 
-* **URL Masking**: Stay on `localhost:1337` regardless of internal navigation.
-* **Custom Scaling**: Precise control over page zoom.
-* **Auto-Scrolling**: Automated movement through page sections.
-* **Persistent Sessions**: Cookies are saved to disk and reused across restarts.
-* **Zero UI**: Minimal footprint, purely driven by environment state.
-
-## License
-
-This project is licensed under the MIT License.

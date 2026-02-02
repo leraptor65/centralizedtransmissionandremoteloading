@@ -1,11 +1,16 @@
 services:
   ctrl:
     image: leraptor65/centralizedtransmissionandremoteloading:latest
-    container_name: ctrl
+    container_name: ctrl_app
     ports:
-      - "1337:1337" # Host:Container
-    env_file:
-      - .env
+      - "1337:1337"
+    environment:
+      - TARGET_URL=https://github.com/leraptor65
+      - SCALE_FACTOR=1.0
+      - AUTO_SCROLL=false
+      - SCROLL_SPEED=10
     volumes:
-      - ./data:/root/data
-    restart: always
+      - ./data:/app/data
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped

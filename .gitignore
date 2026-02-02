@@ -1,19 +1,21 @@
-# Ignore Node.js dependency folder
-node_modules/
+# Binaries and Generated Files
+main
+*.exe
+*.test
+*.out
+bin/
 
-# Ignore the persistent data directory
-# This may contain the target URL, which could be sensitive
-# data/ (Legacy)
-
-# Configuration files
-config.json
+# Data
+data/
 cookies.json
-target_url.txt
+cookies.json.bak
 
-# Ignore npm debug logs
-npm-debug.log*
+# OS
+.DS_Store
 
-# Ignore environment variables (if you ever add one)
-.env
-build.sh
+# Dev Scripts (Private)
 publish.sh
+build.sh
+
+# Environment
+.env

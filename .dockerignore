@@ -1,9 +1,9 @@
-node_modules
-dist
-frontend/node_modules
-frontend/dist
-backend/server
-backend/vendor
 .git
 .gitignore
-.env
+.dockerignore
+README.md
+build.sh
+publish.sh
+compose.dev.yml
+data/
+backend/test_main

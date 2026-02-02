@@ -1,19 +1,19 @@
-# Build Go Backend
-FROM golang:1.25-alpine AS builder
+FROM golang:1.23-bookworm AS builder
 WORKDIR /app
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
 COPY backend/ .
-# Build static binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+RUN go mod download
+RUN go build -o main .
 
-# Final Image
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/server .
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    ca-certificates \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/*
 
-# Expose port
-EXPOSE 1337
-
-CMD ["./server"]
+WORKDIR /app
+COPY --from=builder /app/main .
+RUN mkdir -p /app/data
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["./main"]
