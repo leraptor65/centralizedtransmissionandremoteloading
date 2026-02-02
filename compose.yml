@@ -1,6 +1,6 @@
 services:
   ctrl:
-    image: leraptor65/centralizedtransmissionandremoteloading:latest
+    image: leraptor65/centralizedtransmissionandremoteloading:testing
     container_name: ctrl_app
     ports:
       - "1337:1337"
