@@ -52,6 +52,7 @@ func main() {
 		chromedp.Flag("disable-backgrounding-occluded-windows", true),
 		chromedp.Flag("disable-renderer-backgrounding", true),
 		chromedp.Flag("user-data-dir", cfg.DataDir),
+		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 	)
 
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
