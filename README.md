@@ -4,48 +4,58 @@ A lightweight, headless Chrome automation tool driven by a simple HTTP API. Desi
 
 ## 🚀 Quick Start
 
-You don't need to clone the repository to run this. Just grab the `compose.yml` file.
+You don't need to clone the repository to run this. Just grab the files and go.
 
 1.  **Download `compose.yml`**
-    Create a file named `compose.yml` with the following content (or download it from this repository):
-
-    ```yaml
-    services:
-      ctrl:
-        image: leraptor65/centralizedtransmissionandremoteloading:latest
-        container_name: ctrl_app
-        ports:
-          - "1337:1337" # Host:Container (Can change Host port, e.g., "8080:1337")
-        environment:
-          - TARGET_URL=https://github.com/leraptor65
-          - SCALE_FACTOR=1.0
-          - AUTO_SCROLL=false
-          - SCROLL_SPEED=10
-        volumes:
-          - ./data:/app/data
-        security_opt:
-          - seccomp=unconfined
-        restart: unless-stopped
+    ```bash
+    # using curl
+    curl -o compose.yml https://raw.githubusercontent.com/leraptor65/centralizedtransmissionandremoteloading/master/compose.yml
+    ```
+    ```bash
+    # OR using wget
+    wget https://raw.githubusercontent.com/leraptor65/centralizedtransmissionandremoteloading/master/compose.yml
     ```
 
-2.  **Run the Container**
+2.  **Configure Environment**
+    Create a `.env` file in the same directory (copy-paste block):
+    ```ini
+    CTRL_PORT=1337
+    TARGET_URL=https://github.com/leraptor65
+    SCALE_FACTOR=1.0
+    AUTO_SCROLL=false
+    SCROLL_SPEED=10
+    AUTO_RELOAD=false
+    RELOAD_INTERVAL=60
+    WIDTH=1920
+    HEIGHT=1080
+    DATA_DIR=./data
+    SCRIPT_DIR=/host
+    ```
+
+3.  **Run**
     ```bash
     docker compose up -d
     ```
 
-3.  **Control the Display**
-    Upon startup, the container **automatically generates a control script** in your data folder.
-
-    You can access the stream viewer at: `http://localhost:1337` (or your defined host port).
+4.  **Control**
+    A `ctrl.sh` script will be generated in your directory properly configured to talk to the container.
+    ```bash
+    ./ctrl.sh
+    ```
 
 ## 🛠️ Configuration
 
 | Environment Variable | Default | Description |
 | -------------------- | ------- | ----------- |
+| `CTRL_PORT` | `1337` | Port to access the viewer and API. |
 | `TARGET_URL` | (GitHub) | The URL to display on load. |
 | `SCALE_FACTOR` | `1.0` | Zoom level (e.g. `1.5` for 150%). |
 | `AUTO_SCROLL` | `false` | Enable/Disable auto-scroll loops. |
 | `SCROLL_SPEED` | `10` | Pixels per step for auto-scroll. |
+| `AUTO_RELOAD` | `false` | Enable/Disable auto page reload. |
+| `RELOAD_INTERVAL` | `60` | Interval in seconds for auto-reload. |
+| `WIDTH` | `1920` | Browser viewport width. |
+| `HEIGHT` | `1080` | Browser viewport height. |
 
 ## 🏗️ Development & Building
 
@@ -55,12 +65,14 @@ If you wish to modify the code, you can build the project manually.
 *   Docker
 *   Go 1.23+ (optional, for local run without Docker)
 
-**Build Helper:**
-This repository includes helper scripts `build.sh` and `publish.sh` for development convenience. **Note:** These scripts are excluded from the repository and Docker Hub images to prevent accidental publishing.
 
-**Manual Build:**
+
+**Build:**
 
 1.  Clone the repository.
+    ```bash
+    git clone https://github.com/leraptor65/centralizedtransmissionandremoteloading.git
+    ```
 2.  Build the Docker image:
     ```bash
     docker build -t ctrl-local .

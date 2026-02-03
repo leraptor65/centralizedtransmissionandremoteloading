@@ -3,14 +3,12 @@ services:
     image: leraptor65/centralizedtransmissionandremoteloading:latest
     container_name: ctrl_app
     ports:
-      - "1337:1337"
+      - "${CTRL_PORT}:1337"
+    env_file:
+      - .env
     environment:
-      - CTRL_PORT=1337
-      - TARGET_URL=https://github.com/leraptor65
-      - SCALE_FACTOR=1.0
-      - AUTO_SCROLL=false
-      - SCROLL_SPEED=10
       - SCRIPT_DIR=/host
+      - DATA_DIR=/app/data
     volumes:
       - ./data:/app/data
       - ./:/host

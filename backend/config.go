@@ -15,6 +15,8 @@ type Config struct {
 	Port        string  `json:"-"`
 	Width       int     `json:"width"`
 	Height      int     `json:"height"`
+	AutoReload  bool    `json:"autoReload"`
+	ReloadInt   int     `json:"reloadInt"` // Seconds
 }
 
 func LoadConfig() Config {
@@ -28,11 +30,23 @@ func LoadConfig() Config {
 	if scaleFactor <= 0 {
 		scaleFactor = 1.0
 	}
+	if scaleFactor < 0.25 {
+		scaleFactor = 0.25
+	}
+	if scaleFactor > 5.0 {
+		scaleFactor = 5.0
+	}
 
 	autoScroll := os.Getenv("AUTO_SCROLL") == "true"
 	scrollSpeed, _ := strconv.Atoi(os.Getenv("SCROLL_SPEED"))
 	if scrollSpeed <= 0 {
 		scrollSpeed = 10
+	}
+
+	autoReload := os.Getenv("AUTO_RELOAD") == "true"
+	reloadInt, _ := strconv.Atoi(os.Getenv("RELOAD_INTERVAL"))
+	if reloadInt <= 0 {
+		reloadInt = 60
 	}
 
 	port := "1337"
@@ -66,5 +80,7 @@ func LoadConfig() Config {
 		Port:        port,
 		Width:       width,
 		Height:      height,
+		AutoReload:  autoReload,
+		ReloadInt:   reloadInt,
 	}
 }
