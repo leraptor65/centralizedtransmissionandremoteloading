@@ -39,6 +39,9 @@ func main() {
 	}
 	ensureCtrlScript(scriptDir)
 
+	// Cleanup bad lock file (fixes restart loop)
+	cleanupSingletonLock(cfg.DataDir)
+
 	// 1. Setup Chromedp
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
@@ -55,9 +58,14 @@ func main() {
 	defer cancel()
 
 	// 2. Initialize Browser
+	// 2. Initialize Browser
+	log.Printf("Initializing browser with Resolution: %dx%d, Scale: %f", cfg.Width, cfg.Height, cfg.ScaleFactor)
+	logicalWidth := int64(float64(cfg.Width) / cfg.ScaleFactor)
+	logicalHeight := int64(float64(cfg.Height) / cfg.ScaleFactor)
+
 	if err := chromedp.Run(ctx,
 		chromedp.Navigate(cfg.TargetURL),
-		emulation.SetDeviceMetricsOverride(1920, 1080, cfg.ScaleFactor, false),
+		emulation.SetDeviceMetricsOverride(logicalWidth, logicalHeight, cfg.ScaleFactor, false),
 	); err != nil {
 		log.Fatalf("Failed to start browser: %v", err)
 	}
@@ -157,15 +165,19 @@ func main() {
 		if val > 0 {
 			stateMu.Lock()
 			cfg.ScaleFactor = val
+			// Recalculate based on current Width/Height
+			logicalW := int64(float64(cfg.Width) / cfg.ScaleFactor)
+			logicalH := int64(float64(cfg.Height) / cfg.ScaleFactor)
 			stateMu.Unlock()
+
 			// Apply immediately and RELOAD to ensure layout reflow updates
 			go func() {
 				chromedp.Run(ctx,
-					emulation.SetDeviceMetricsOverride(1920, 1080, cfg.ScaleFactor, false),
+					emulation.SetDeviceMetricsOverride(logicalW, logicalH, cfg.ScaleFactor, false),
 					chromedp.Reload(),
 				)
 			}()
-			log.Printf("ScaleFactor set to %f (Reloading...)", val)
+			log.Printf("ScaleFactor set to %f (Logical Viewport: %dx%d)", val, logicalW, logicalH)
 		}
 		w.Write([]byte(fmt.Sprintf("Scale: %f", cfg.ScaleFactor)))
 	})
@@ -320,8 +332,11 @@ func serveViewer(w http.ResponseWriter, r *http.Request) {
     }
     img.addEventListener('click', e => {
         const rect = img.getBoundingClientRect();
-        const scaleX = 1920 / rect.width; const scaleY = 1080 / rect.height;
-        const x = (e.clientX - rect.left) * scaleX; const y = (e.clientY - rect.top) * scaleY;
+        // Use naturalWidth/Height to map client click to actual image coordinates
+        const scaleX = img.naturalWidth / rect.width; 
+        const scaleY = img.naturalHeight / rect.height;
+        const x = (e.clientX - rect.left) * scaleX; 
+        const y = (e.clientY - rect.top) * scaleY;
         showClick(e.clientX, e.clientY);
         fetch('/input', { method: 'POST', body: JSON.stringify({type: 'click', x: x, y: y}) });
     });
@@ -442,5 +457,19 @@ esac
 		log.Printf("Error creating ctrl.sh: %v", err)
 	} else {
 		log.Printf("✅ Generated ctrl.sh at %s", scriptPath)
+	}
+}
+
+func cleanupSingletonLock(dataDir string) {
+	locks := []string{"SingletonLock", "SingletonCookie", "SingletonSocket"}
+	for _, name := range locks {
+		path := filepath.Join(dataDir, name)
+		if _, err := os.Stat(path); err == nil {
+			if err := os.Remove(path); err == nil {
+				log.Printf("⚠️  Removed stale Chrome Lock file: %s", path)
+			} else {
+				log.Printf("❌ Failed to remove lock file %s: %v", path, err)
+			}
+		}
 	}
 }

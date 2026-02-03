@@ -32,7 +32,7 @@ CMD=$1
 
 case "$CMD" in
     status)
-        curl -s "$BASE_URL/status" | jq .
+        curl -s "$BASE_URL/status"
         ;;
     lock)
         curl -X POST "$BASE_URL/lock"

@@ -13,6 +13,8 @@ type Config struct {
 	ScrollSpeed int     `json:"scrollSpeed"` // Pixels per interval
 	DataDir     string  `json:"-"`
 	Port        string  `json:"-"`
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
 }
 
 func LoadConfig() Config {
@@ -45,6 +47,16 @@ func LoadConfig() Config {
 		log.Printf("Warning: Could not create data dir: %v", err)
 	}
 
+	width, _ := strconv.Atoi(os.Getenv("WIDTH"))
+	if width <= 0 {
+		width = 1920
+	}
+
+	height, _ := strconv.Atoi(os.Getenv("HEIGHT"))
+	if height <= 0 {
+		height = 1080
+	}
+
 	return Config{
 		TargetURL:   targetURL,
 		ScaleFactor: scaleFactor,
@@ -52,5 +64,7 @@ func LoadConfig() Config {
 		ScrollSpeed: scrollSpeed,
 		DataDir:     dataDir,
 		Port:        port,
+		Width:       width,
+		Height:      height,
 	}
 }

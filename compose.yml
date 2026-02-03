@@ -5,6 +5,7 @@ services:
     ports:
       - "1337:1337"
     environment:
+      - CTRL_PORT=1337
       - TARGET_URL=https://github.com/leraptor65
       - SCALE_FACTOR=1.0
       - AUTO_SCROLL=false
