@@ -27,6 +27,9 @@ function show_help {
     echo "  autoscroll [on|off]  📜 Toggle auto-scroll"
     echo "  speed [val]          ⚡ Set scroll speed"
     echo "  scale [val]          🔍 Set zoom scale"
+    echo "  width [px]           ↔️ Set viewport width"
+    echo "  height [px]          ↕️ Set viewport height"
+    echo "  hard-reset           🧨 Stop, Clear Data & Restart"
     echo "  q                    ❌ Quit interactive mode"
     echo ""
 }
@@ -112,6 +115,49 @@ function run_cmd {
                 echo " -> Scale set to $ARG"
             else
                 echo "Usage: scale [value]"
+            fi
+            ;;
+        width)
+            if [ -n "$ARG" ]; then
+                curl -X POST -s "$BASE_URL/config/width?value=$ARG"
+                echo " -> Width set to $ARG"
+            else
+                echo "Usage: width [pixels]"
+            fi
+            ;;
+        height)
+            if [ -n "$ARG" ]; then
+                curl -X POST -s "$BASE_URL/config/height?value=$ARG"
+                echo " -> Height set to $ARG"
+            else
+                echo "Usage: height [pixels]"
+            fi
+            ;;
+        hard-reset)
+            echo "⚠️  DANGER: This will STOP the service and DELETE ALL DATA (cookies, cache, config)."
+            read -p "Are you sure? (y/N) " C1
+            if [[ "$C1" =~ ^[Yy]$ ]]; then
+                read -p "Really sure? This cannot be undone. (y/N) " C2
+                if [[ "$C2" =~ ^[Yy]$ ]]; then
+                    read -p "Last chance! Type 'NUKE' to confirm: " C3
+                    if [[ "$C3" == "NUKE" ]]; then
+                        echo "🔥 NUKING..."
+                        docker compose down
+                        if [ -d "./data" ]; then
+                            # Need sudo to remove chrome files typically
+                            sudo rm -rf ./data/*
+                            echo "🗑️  Data cleared."
+                        fi
+                        docker compose up -d
+                        echo "✅ Hard Reset Complete. Service restarting..."
+                    else
+                        echo "❌ Aborted."
+                    fi
+                else
+                    echo "❌ Aborted."
+                fi
+            else
+                echo "❌ Aborted."
             fi
             ;;
         q|quit|exit)

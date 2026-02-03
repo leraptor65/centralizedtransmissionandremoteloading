@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -19,68 +21,140 @@ type Config struct {
 	ReloadInt   int     `json:"reloadInt"` // Seconds
 }
 
+const configFileName = "config.json"
+
 func LoadConfig() Config {
-	// Defaults
-	targetURL := os.Getenv("TARGET_URL")
-	if targetURL == "" {
-		targetURL = "https://github.com/leraptor65"
+	// 1. Initialize with Defaults / Environment Variables
+	cfg := Config{}
+
+	cfg.TargetURL = os.Getenv("TARGET_URL")
+	if cfg.TargetURL == "" {
+		cfg.TargetURL = "https://github.com/leraptor65"
 	}
 
-	scaleFactor, _ := strconv.ParseFloat(os.Getenv("SCALE_FACTOR"), 64)
-	if scaleFactor <= 0 {
-		scaleFactor = 1.0
+	cfg.ScaleFactor, _ = strconv.ParseFloat(os.Getenv("SCALE_FACTOR"), 64)
+	if cfg.ScaleFactor <= 0 {
+		cfg.ScaleFactor = 1.0
 	}
-	if scaleFactor < 0.25 {
-		scaleFactor = 0.25
+	if cfg.ScaleFactor < 0.25 {
+		cfg.ScaleFactor = 0.25
 	}
-	if scaleFactor > 5.0 {
-		scaleFactor = 5.0
-	}
-
-	autoScroll := os.Getenv("AUTO_SCROLL") == "true"
-	scrollSpeed, _ := strconv.Atoi(os.Getenv("SCROLL_SPEED"))
-	if scrollSpeed <= 0 {
-		scrollSpeed = 10
+	if cfg.ScaleFactor > 5.0 {
+		cfg.ScaleFactor = 5.0
 	}
 
-	autoReload := os.Getenv("AUTO_RELOAD") == "true"
-	reloadInt, _ := strconv.Atoi(os.Getenv("RELOAD_INTERVAL"))
-	if reloadInt <= 0 {
-		reloadInt = 60
+	cfg.AutoScroll = os.Getenv("AUTO_SCROLL") == "true"
+	cfg.ScrollSpeed, _ = strconv.Atoi(os.Getenv("SCROLL_SPEED"))
+	if cfg.ScrollSpeed <= 0 {
+		cfg.ScrollSpeed = 10
 	}
 
-	port := "1337"
+	cfg.AutoReload = os.Getenv("AUTO_RELOAD") == "true"
+	cfg.ReloadInt, _ = strconv.Atoi(os.Getenv("RELOAD_INTERVAL"))
+	if cfg.ReloadInt <= 0 {
+		cfg.ReloadInt = 60
+	}
 
+	cfg.Port = "1337"
+
+	cfg.DataDir = os.Getenv("DATA_DIR")
+	if cfg.DataDir == "" {
+		cfg.DataDir = "./data"
+	}
+
+	// Ensure data directory exists
+	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+		log.Printf("Warning: Could not create data dir: %v", err)
+	}
+
+	cfg.Width, _ = strconv.Atoi(os.Getenv("WIDTH"))
+	if cfg.Width <= 0 {
+		cfg.Width = 1920
+	}
+
+	cfg.Height, _ = strconv.Atoi(os.Getenv("HEIGHT"))
+	if cfg.Height <= 0 {
+		cfg.Height = 1080
+	}
+
+	// 2. Load Overrides from Config File
+	configPath := filepath.Join(cfg.DataDir, configFileName)
+	if _, err := os.Stat(configPath); err == nil {
+		file, err := os.ReadFile(configPath)
+		if err == nil {
+			var override Config
+			if err := json.Unmarshal(file, &override); err == nil {
+				// Apply overrides if present in JSON (zero value check might be tricky if 0 or false is valid,
+				// but we assume the JSON contains the full valid state if it exists)
+				// Actually, we should just overwrite with the struct from JSON, relying on it being complete-ish,
+				// OR we carefully merge.
+				// Since SaveConfig writes the FULL struct, we can just replace relevant fields.
+
+				// We don't want to override DataDir or Port usually, but others yes.
+				if override.TargetURL != "" {
+					cfg.TargetURL = override.TargetURL
+				}
+				if override.ScaleFactor > 0 {
+					cfg.ScaleFactor = override.ScaleFactor
+				}
+				cfg.AutoScroll = override.AutoScroll // bool, explicitly set
+				if override.ScrollSpeed > 0 {
+					cfg.ScrollSpeed = override.ScrollSpeed
+				}
+				cfg.AutoReload = override.AutoReload
+				if override.ReloadInt > 0 {
+					cfg.ReloadInt = override.ReloadInt
+				}
+				if override.Width > 0 {
+					cfg.Width = override.Width
+				}
+				if override.Height > 0 {
+					cfg.Height = override.Height
+				}
+
+				log.Printf("Loaded config overrides from %s", configPath)
+			} else {
+				log.Printf("Error parsing config file: %v", err)
+			}
+		}
+	}
+
+	return cfg
+}
+
+func SaveConfig(cfg Config) {
+	// Ensure DataDir exists
+	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+		log.Printf("Error creating data dir for config save: %v", err)
+		return
+	}
+
+	configPath := filepath.Join(cfg.DataDir, configFileName)
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		log.Printf("Error marshaling config: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		log.Printf("Error saving config file: %v", err)
+	} else {
+		log.Printf("Configuration saved to %s", configPath)
+	}
+}
+
+// ResetConfig removes the persistent config file
+func ResetConfig() {
+	// We need to know DataDir. Since we can't easily get it without loading,
+	// checking env is safest or just checking ./data as fallback
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		dataDir = "./data"
 	}
-
-	// Ensure data directory exists for Chrome profile
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		log.Printf("Warning: Could not create data dir: %v", err)
-	}
-
-	width, _ := strconv.Atoi(os.Getenv("WIDTH"))
-	if width <= 0 {
-		width = 1920
-	}
-
-	height, _ := strconv.Atoi(os.Getenv("HEIGHT"))
-	if height <= 0 {
-		height = 1080
-	}
-
-	return Config{
-		TargetURL:   targetURL,
-		ScaleFactor: scaleFactor,
-		AutoScroll:  autoScroll,
-		ScrollSpeed: scrollSpeed,
-		DataDir:     dataDir,
-		Port:        port,
-		Width:       width,
-		Height:      height,
-		AutoReload:  autoReload,
-		ReloadInt:   reloadInt,
+	configPath := filepath.Join(dataDir, configFileName)
+	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("Error resetting config: %v", err)
+	} else {
+		log.Printf("Configuration reset (deleted %s)", configPath)
 	}
 }

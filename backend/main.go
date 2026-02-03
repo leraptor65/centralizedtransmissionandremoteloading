@@ -151,6 +151,7 @@ func main() {
 		if val, err := strconv.Atoi(interval); err == nil && val > 0 {
 			cfg.ReloadInt = val
 		}
+		SaveConfig(cfg)
 		stateMu.Unlock()
 
 		if err := chromedp.Run(ctx, chromedp.Reload()); err != nil {
@@ -169,6 +170,7 @@ func main() {
 		enabled := r.URL.Query().Get("enabled") == "true"
 		stateMu.Lock()
 		cfg.AutoScroll = enabled
+		SaveConfig(cfg)
 		stateMu.Unlock()
 
 		chromedp.Run(ctx, chromedp.Reload())
@@ -186,6 +188,7 @@ func main() {
 		if val > 0 {
 			stateMu.Lock()
 			cfg.ScrollSpeed = val
+			SaveConfig(cfg)
 			stateMu.Unlock()
 			log.Printf("ScrollSpeed set to %d", val)
 		}
@@ -204,6 +207,7 @@ func main() {
 		if newURL != "" {
 			stateMu.Lock()
 			cfg.TargetURL = newURL
+			SaveConfig(cfg)
 			stateMu.Unlock()
 
 			// Use Navigate, not Reload
@@ -218,6 +222,9 @@ func main() {
 		if r.Method != http.MethodPost {
 			return
 		}
+
+		// Delete persistent config
+		ResetConfig()
 
 		// Reload fresh config from ENV (ignores current runtime changes)
 		newCfg := LoadConfig()
@@ -261,6 +268,7 @@ func main() {
 		// Recalculate based on current Width/Height
 		logicalW := int64(float64(cfg.Width) / cfg.ScaleFactor)
 		logicalH := int64(float64(cfg.Height) / cfg.ScaleFactor)
+		SaveConfig(cfg)
 		stateMu.Unlock()
 
 		// Apply immediately
@@ -274,6 +282,62 @@ func main() {
 		}()
 		log.Printf("ScaleFactor set to %f (Logical Viewport: %dx%d)", val, logicalW, logicalH)
 		w.Write([]byte(fmt.Sprintf("Scale: %f", cfg.ScaleFactor)))
+	})
+
+	// Config: Width
+	http.HandleFunc("/config/width", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			return
+		}
+		val, _ := strconv.Atoi(r.URL.Query().Get("value"))
+		if val <= 0 {
+			val = 1920 // default fallback
+		}
+
+		stateMu.Lock()
+		cfg.Width = val
+		// Recalculate logical dimensions
+		logicalW := int64(float64(cfg.Width) / cfg.ScaleFactor)
+		logicalH := int64(float64(cfg.Height) / cfg.ScaleFactor)
+		SaveConfig(cfg)
+		stateMu.Unlock()
+
+		go func() {
+			chromedp.Run(ctx,
+				emulation.SetDeviceMetricsOverride(logicalW, logicalH, 1.0, false),
+				chromedp.Reload(),
+			)
+		}()
+		log.Printf("Width set to %d (Logical: %d)", val, logicalW)
+		w.Write([]byte(fmt.Sprintf("Width: %d", cfg.Width)))
+	})
+
+	// Config: Height
+	http.HandleFunc("/config/height", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			return
+		}
+		val, _ := strconv.Atoi(r.URL.Query().Get("value"))
+		if val <= 0 {
+			val = 1080 // default fallback
+		}
+
+		stateMu.Lock()
+		cfg.Height = val
+		// Recalculate logical dimensions
+		logicalW := int64(float64(cfg.Width) / cfg.ScaleFactor)
+		logicalH := int64(float64(cfg.Height) / cfg.ScaleFactor)
+		SaveConfig(cfg)
+		stateMu.Unlock()
+
+		go func() {
+			chromedp.Run(ctx,
+				emulation.SetDeviceMetricsOverride(logicalW, logicalH, 1.0, false),
+				chromedp.Reload(),
+			)
+		}()
+		log.Printf("Height set to %d (Logical: %d)", val, logicalH)
+		w.Write([]byte(fmt.Sprintf("Height: %d", cfg.Height)))
 	})
 
 	// Input Handler
